@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>線性回歸直線繪圖與多組別計算器 | 科學數據分析工具</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-900 leading-tight">多組別線性回歸直線繪圖與計算器</h1>
+                    <p class="text-xs text-slate-500 hidden sm:block">支援自訂多組數據對照、獨立斜率、截距、平均數與幾何圖案標籤</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button onclick="openBatchModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-medium py-2 px-3 rounded-lg shadow-sm transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-paste text-brand-600"></i>
+                    <span>批次輸入當前組</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- 左側欄：設定與組別數據輸入 (佔 5 欄) -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- 1. 軸線與圖表基本設定 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-sliders text-brand-600"></i>
+                            <span>座標軸設定</span>
+                        </h2>
+                        <span class="text-xs text-slate-400">所有組別共用</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">圖表主標題</label>
+                            <input type="text" id="chartTitle" value="電阻元件伏安特性曲線 (V-I)" oninput="updateAll()" 
+                                class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none transition">
+                        </div>
+
+                        <!-- 橫軸 (X) 設定 -->
+                        <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">橫軸 (X) 標題</label>
+                                <input type="text" id="xTitle" value="電壓 V" oninput="updateAll()" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">橫軸單位</label>
+                                <input type="text" id="xUnit" value="V" oninput="updateAll()" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                            </div>
+                        </div>
+
+                        <!-- 縱軸 (Y) 設定 -->
+                        <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">縱軸 (Y) 標題</label>
+                                <input type="text" id="yTitle" value="電流 I" oninput="updateAll()" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">縱軸單位</label>
+                                <input type="text" id="yUnit" value="mA" oninput="updateAll()" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 組別管理與數據輸入卡片 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-layer-group text-brand-600"></i>
+                            <h2 class="font-bold text-slate-800">實驗數據組別</h2>
+                        </div>
+                        <button onclick="createNewGroup()" class="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold px-2.5 py-1.5 rounded-lg border border-brand-200 transition flex items-center space-x-1">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>新增組別</span>
+                        </button>
+                    </div>
+
+                    <!-- 組別切換 Tabs -->
+                    <div id="groupTabsContainer" class="flex items-center space-x-1.5 overflow-x-auto pb-2 mb-3">
+                        <!-- 由 JS 動態生成組別標籤 -->
+                    </div>
+
+                    <!-- 當前組別設定列 (名稱、顏色、圖案) -->
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-3 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex-1 flex items-center space-x-2">
+                                <label class="text-xs font-semibold text-slate-600 shrink-0">組別名稱：</label>
+                                <input type="text" id="currentGroupNameInput" oninput="onCurrentGroupNameChange(this.value)" 
+                                    class="w-full px-2.5 py-1 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none font-bold text-slate-800">
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <label class="text-xs font-semibold text-slate-600 shrink-0">代表色：</label>
+                                <input type="color" id="currentGroupColorInput" onchange="onCurrentGroupColorChange(this.value)" 
+                                    class="w-7 h-7 rounded-lg border border-slate-300 cursor-pointer p-0 bg-transparent">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
+                            <div class="flex items-center space-x-2 flex-1">
+                                <label class="text-xs font-semibold text-slate-600 shrink-0">圖案形狀：</label>
+                                <select id="currentGroupShapeSelect" onchange="onCurrentGroupShapeChange(this.value)" class="text-xs bg-white text-slate-700 py-1 px-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-brand-500">
+                                    <option value="circle">● 圓形 (Circle)</option>
+                                    <option value="square">■ 正方形 (Square)</option>
+                                    <option value="triangle">▲ 正三角形 (Triangle)</option>
+                                    <option value="diamond">◆ 菱形 (Diamond)</option>
+                                    <option value="star">★ 五角星 (Star)</option>
+                                    <option value="hexagon">⬡ 六角形 (Hexagon)</option>
+                                    <option value="cross">✚ 十字 (Cross)</option>
+                                    <option value="xmark">✕ 叉號 (X-Mark)</option>
+                                </select>
+                            </div>
+                            <button id="deleteGroupBtn" onclick="deleteCurrentGroup()" class="text-xs text-rose-600 hover:text-white hover:bg-rose-600 px-2.5 py-1 rounded-lg transition border border-rose-200 shrink-0">
+                                <i class="fa-solid fa-trash-can mr-1"></i>刪除此組
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 數據點表格表頭 -->
+                    <div class="grid grid-cols-12 gap-2 px-2 py-2 bg-slate-100 rounded-t-xl text-xs font-bold text-slate-600 border-b border-slate-200">
+                        <div class="col-span-1 text-center">#</div>
+                        <div class="col-span-5" id="tableHeaderX">X (電壓 V [V])</div>
+                        <div class="col-span-5" id="tableHeaderY">Y (電流 I [mA])</div>
+                        <div class="col-span-1 text-center">操作</div>
+                    </div>
+
+                    <!-- 數據列表容器 -->
+                    <div id="dataRowsContainer" class="divide-y divide-slate-100 max-h-[300px] overflow-y-auto border-x border-b border-slate-200 rounded-b-xl mb-4">
+                        <!-- 由 JS 動態產生 -->
+                    </div>
+
+                    <!-- 底部操作按鈕 -->
+                    <div class="flex items-center space-x-3 mt-auto">
+                        <button onclick="addDataRow('', '', true)" class="flex-1 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold py-2 px-3 rounded-xl border border-brand-200 transition flex items-center justify-center space-x-2 text-xs sm:text-sm shadow-sm">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>新增一筆數據</span>
+                        </button>
+                        <button onclick="sortCurrentGroupData()" title="依 X 值排序" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-xl transition flex items-center space-x-1 text-xs">
+                            <i class="fa-solid fa-arrow-down-1-9"></i>
+                            <span>排序</span>
+                        </button>
+                        <button onclick="exportCSV()" title="匯出所有組別 CSV" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-xl transition flex items-center space-x-1 text-xs">
+                            <i class="fa-solid fa-file-csv text-emerald-600"></i>
+                            <span>匯出 CSV</span>
+                        </button>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- 右側欄：各組統計結果彙整、圖表與預測器 (佔 7 欄) -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- 1. 各組回歸成果對照表 (含斜率、截距、平均數 μx, μy、R²) -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-table-cells text-brand-600"></i>
+                            <span>各組線性回歸統計成果對照表</span>
+                        </h2>
+                        <div class="flex items-center space-x-2 text-xs">
+                            <span class="text-slate-500">小數位數：</span>
+                            <select id="precisionSelect" onchange="updateAll()" class="bg-slate-100 text-slate-700 font-semibold px-2 py-1 rounded-md border border-slate-200 outline-none">
+                                <option value="2">2 位</option>
+                                <option value="3">3 位</option>
+                                <option value="4" selected>4 位</option>
+                                <option value="5">5 位</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 響應式各組統計卡片容器 -->
+                    <div id="groupStatsSummaryContainer" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+                        <!-- JS 動態生成各組卡片 -->
+                    </div>
+                </section>
+
+                <!-- 2. 多組回歸直線疊合視覺化圖表 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-chart-line text-brand-600"></i>
+                            <h2 class="font-bold text-slate-800">多組別回歸直線疊加圖</h2>
+                        </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            <label class="inline-flex items-center space-x-1.5 text-xs text-slate-600 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition select-none">
+                                <input type="checkbox" id="beginAtZeroToggle" onchange="updateAll()" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>包含原點 (0,0)</span>
+                            </label>
+                            
+                            <button onclick="downloadChartImage()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium py-1.5 px-3 rounded-lg shadow-sm transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-download"></i>
+                                <span>下載圖片 (PNG)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 圖表細節控制 -->
+                    <div class="bg-slate-50 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 border border-slate-200">
+                        <div class="flex items-center space-x-3">
+                            <div class="flex items-center space-x-1.5">
+                                <span>數據點大小：</span>
+                                <input type="range" id="pointSizeSlider" min="4" max="14" value="7" oninput="updateAll()" class="w-20 accent-brand-600 cursor-pointer">
+                            </div>
+                            <div class="flex items-center space-x-1.5">
+                                <span>直線粗細：</span>
+                                <input type="range" id="lineWidthSlider" min="1" max="5" step="0.5" value="2.5" oninput="updateAll()" class="w-20 accent-brand-600 cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <label class="inline-flex items-center space-x-1 cursor-pointer">
+                                <input type="checkbox" id="showDataLabelsToggle" onchange="updateAll()" class="rounded text-brand-600">
+                                <span>顯示各點座標</span>
+                            </label>
+                            <label class="inline-flex items-center space-x-1 cursor-pointer">
+                                <input type="checkbox" id="showLineToggle" checked onchange="updateAll()" class="rounded text-brand-600">
+                                <span>繪製回歸直線</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 圖表 Canvas -->
+                    <div class="relative w-full h-[400px] sm:h-[460px] bg-white rounded-xl border border-slate-200 p-2">
+                        <canvas id="regressionChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- 3. 組別自選預測計算機 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-calculator text-brand-600"></i>
+                            <span>回歸預測計算機</span>
+                        </h2>
+                        <div class="flex items-center space-x-1.5 text-xs">
+                            <span class="text-slate-500">推算目標組別：</span>
+                            <select id="predictGroupSelect" onchange="calculatePredictY(); calculatePredictX();" class="bg-slate-100 font-bold text-slate-700 px-2 py-1 rounded-md border border-slate-300">
+                                <!-- JS 動態載入 -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- 輸入 X 預測 Y -->
+                        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                            <div class="text-xs font-semibold text-slate-700 mb-2 flex items-center justify-between">
+                                <span>已知橫軸 <span id="predLabelX1" class="text-brand-600">電壓 V</span>，預測縱軸 <span id="predLabelY1" class="text-emerald-600">電流 I</span></span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="relative flex-1">
+                                    <input type="number" step="any" id="predictInputX" oninput="calculatePredictY()" placeholder="輸入 X 值" 
+                                        class="w-full pl-3 pr-8 py-2 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none font-mono">
+                                    <span id="predUnitX1" class="absolute right-2.5 top-2.5 text-xs text-slate-400">V</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right text-slate-400 text-xs"></i>
+                                <div class="flex-1 bg-white px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm font-bold text-emerald-700 flex items-center justify-between">
+                                    <span id="predictOutputY">--</span>
+                                    <span id="predUnitY1" class="text-xs font-normal text-slate-400 ml-1">mA</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 輸入 Y 反推 X -->
+                        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                            <div class="text-xs font-semibold text-slate-700 mb-2 flex items-center justify-between">
+                                <span>已知縱軸 <span id="predLabelY2" class="text-emerald-600">電流 I</span>，反推橫軸 <span id="predLabelX2" class="text-brand-600">電壓 V</span></span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="relative flex-1">
+                                    <input type="number" step="any" id="predictInputY" oninput="calculatePredictX()" placeholder="輸入 Y 值" 
+                                        class="w-full pl-3 pr-8 py-2 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none font-mono">
+                                    <span id="predUnitY2" class="absolute right-2.5 top-2.5 text-xs text-slate-400">mA</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right text-slate-400 text-xs"></i>
+                                <div class="flex-1 bg-white px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm font-bold text-brand-700 flex items-center justify-between">
+                                    <span id="predictOutputX">--</span>
+                                    <span id="predUnitX2" class="text-xs font-normal text-slate-400 ml-1">V</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+            <div>
+                <span>最小平方法公式：</span>
+                <span class="font-mono">m = &sum;(x - &mu;<sub>x</sub>)(y - &mu;<sub>y</sub>) / &sum;(x - &mu;<sub>x</sub>)<sup>2</sup></span>，
+                <span class="font-mono">b = &mu;<sub>y</sub> - m &mu;<sub>x</sub></span>
+            </div>
+            <div>支援自訂多組數據對照與獨立回歸分析</div>
+        </div>
+    </footer>
+
+    <!-- 批次輸入當前組數據 Modal -->
+    <div id="batchModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-paste text-brand-600"></i>
+                    <span id="batchModalTitle">批次輸入數據</span>
+                </h3>
+                <button onclick="closeBatchModal()" class="text-slate-400 hover:text-slate-600 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    請輸入或貼上數據，每一行代表一組 (X, Y) 數值。支援使用逗號、空格或從 Excel 複製的 Tab 鍵分隔。
+                </p>
+                <textarea id="batchTextarea" rows="8" placeholder="1.0, 0.47&#10;1.9, 0.891&#10;2.87, 1.337" 
+                    class="w-full p-3 text-sm font-mono bg-slate-50 rounded-xl border border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+                
+                <div class="flex items-center justify-between pt-2">
+                    <label class="inline-flex items-center space-x-2 text-xs text-slate-600 cursor-pointer">
+                        <input type="checkbox" id="batchReplaceToggle" checked class="rounded text-brand-600">
+                        <span>覆蓋當前組現有數據（取消則附加在後方）</span>
+                    </label>
+                </div>
+            </div>
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2">
+                <button onclick="closeBatchModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition">取消</button>
+                <button onclick="applyBatchData()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-sm transition">確認匯入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知 Toast -->
+    <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-2.5 text-xs font-medium border border-slate-700">
+            <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+            <span id="toastMessage">訊息內容</span>
+        </div>
+    </div>
+
+    <script>
+        // --- 預設載入使用者所附圖表的三組物理數據 (R1, R2, R3) ---
+        let groups = [
+            {
+                id: 'g_r1',
+                name: 'R1',
+                color: '#4f46e5', // 藍紫色
+                shape: 'circle',
+                points: [
+                    { x: 1.0,   y: 0.47 },
+                    { x: 1.9,   y: 0.891 },
+                    { x: 2.87,  y: 1.337 },
+                    { x: 3.82,  y: 1.782 },
+                    { x: 4.98,  y: 2.32 }
+                ]
+            },
+            {
+                id: 'g_r2',
+                name: 'R2',
+                color: '#059669', // 翡翠綠
+                shape: 'square',
+                points: [
+                    { x: 0.932, y: 0.633 },
+                    { x: 1.864, y: 1.266 },
+                    { x: 2.98,  y: 2.02 },
+                    { x: 3.92,  y: 2.65 },
+                    { x: 4.47,  y: 3.03 }
+                ]
+            },
+            {
+                id: 'g_r3',
+                name: 'R3',
+                color: '#ea580c', // 活力橘
+                shape: 'triangle',
+                points: [
+                    { x: 0.902, y: 0.922 },
+                    { x: 1.968, y: 2.01 },
+                    { x: 1.174, y: 1.199 },
+                    { x: 1.772, y: 1.659 },
+                    { x: 2.37,  y: 2.42 }
+                ]
+            }
+        ];
+
+        let activeGroupId = 'g_r1';
+        let groupRegressions = {}; // 存放各組回歸統計結果
+        let chartInstance = null;
+
+        // 調色盤預設色
+        const PALETTE = ['#4f46e5', '#059669', '#ea580c', '#e11d48', '#0284c7', '#7c3aed', '#d97706', '#0d9488'];
+        const SHAPES = ['circle', 'square', 'triangle', 'diamond', 'star', 'hexagon', 'cross', 'xmark'];
+
+        window.onload = function () {
+            initChart();
+            renderGroupTabs();
+            syncActiveGroupInputs();
+            renderTableRows();
+            updateAll();
+        };
+
+        function getCurrentGroup() {
+            return groups.find(g => g.id === activeGroupId) || groups[0];
+        }
+
+        // --- 組別標籤與切換 ---
+        function renderGroupTabs() {
+            const container = document.getElementById('groupTabsContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            groups.forEach(g => {
+                const isActive = g.id === activeGroupId;
+                const tab = document.createElement('button');
+                tab.type = 'button';
+                tab.onclick = () => switchGroup(g.id);
+                tab.className = `flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 border ${
+                    isActive 
+                        ? 'bg-white shadow-xs border-brand-500 text-brand-700' 
+                        : 'bg-slate-100 hover:bg-slate-200 border-transparent text-slate-600'
+                }`;
+                tab.innerHTML = `
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${g.color};"></span>
+                    <span>${g.name || '未命名'}</span>
+                    <span class="text-[10px] text-slate-400 font-mono">(${g.points.filter(p => typeof p.x === 'number').length})</span>
+                `;
+                container.appendChild(tab);
+            });
+
+            // 更新預測計算機下拉選單
+            const predictSelect = document.getElementById('predictGroupSelect');
+            if (predictSelect) {
+                const currentVal = predictSelect.value;
+                predictSelect.innerHTML = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+                if (groups.some(g => g.id === currentVal)) {
+                    predictSelect.value = currentVal;
+                } else if (groups.length > 0) {
+                    predictSelect.value = groups[0].id;
+                }
+            }
+        }
+
+        function switchGroup(groupId) {
+            activeGroupId = groupId;
+            renderGroupTabs();
+            syncActiveGroupInputs();
+            renderTableRows();
+            updateAll();
+        }
+
+        function syncActiveGroupInputs() {
+            const g = getCurrentGroup();
+            if (!g) return;
+            document.getElementById('currentGroupNameInput').value = g.name;
+            document.getElementById('currentGroupColorInput').value = g.color;
+            document.getElementById('currentGroupShapeSelect').value = g.shape;
+            document.getElementById('batchModalTitle').textContent = `批次輸入數據 - 【${g.name}】`;
+
+            // 當只有一組時禁用刪除
+            const delBtn = document.getElementById('deleteGroupBtn');
+            if (delBtn) {
+                if (groups.length <= 1) {
+                    delBtn.disabled = true;
+                    delBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                } else {
+                    delBtn.disabled = false;
+                    delBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                }
+            }
+        }
+
+        function createNewGroup() {
+            const nextIdx = groups.length + 1;
+            const newId = 'g_' + Date.now();
+            const color = PALETTE[(nextIdx - 1) % PALETTE.length];
+            const shape = SHAPES[(nextIdx - 1) % SHAPES.length];
+
+            groups.push({
+                id: newId,
+                name: `R${nextIdx}`,
+                color: color,
+                shape: shape,
+                points: [
+                    { x: '', y: '' },
+                    { x: '', y: '' },
+                    { x: '', y: '' }
+                ]
+            });
+
+            activeGroupId = newId;
+            renderGroupTabs();
+            syncActiveGroupInputs();
+            renderTableRows();
+            updateAll();
+            showToast(`已建立新組別：R${nextIdx}`);
+        }
+
+        function deleteCurrentGroup() {
+            if (groups.length <= 1) {
+                showToast('至少需保留一組數據', 'info');
+                return;
+            }
+            const curr = getCurrentGroup();
+            const idx = groups.findIndex(g => g.id === activeGroupId);
+            groups.splice(idx, 1);
+            activeGroupId = groups[Math.max(0, idx - 1)].id;
+
+            renderGroupTabs();
+            syncActiveGroupInputs();
+            renderTableRows();
+            updateAll();
+            showToast(`已刪除組別「${curr.name}」`);
+        }
+
+        function onCurrentGroupNameChange(newName) {
+            const g = getCurrentGroup();
+            if (!g) return;
+            g.name = newName.trim() || '未命名';
+            renderGroupTabs();
+            updateAll();
+        }
+
+        function onCurrentGroupColorChange(newColor) {
+            const g = getCurrentGroup();
+            if (!g) return;
+            g.color = newColor;
+            renderGroupTabs();
+            updateAll();
+        }
+
+        function onCurrentGroupShapeChange(newShape) {
+            const g = getCurrentGroup();
+            if (!g) return;
+            g.shape = newShape;
+            updateAll();
+        }
+
+        // --- 表格資料列渲染 ---
+        function renderTableRows() {
+            const container = document.getElementById('dataRowsContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            const g = getCurrentGroup();
+            if (!g) return;
+
+            g.points.forEach((point, index) => {
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 gap-2 px-2 py-1.5 items-center hover:bg-slate-50 transition border-b border-slate-100 last:border-b-0';
+                
+                row.innerHTML = `
+                    <div class="col-span-1 text-center font-mono text-xs font-semibold text-slate-400">${index + 1}</div>
+                    <div class="col-span-5">
+                        <input type="number" step="any" value="${point.x !== '' && point.x !== undefined ? point.x : ''}" placeholder="X 數值"
+                            oninput="onCellInput(${index}, 'x', this.value)"
+                            onkeydown="handleCellKeydown(event, ${index}, 'x')"
+                            class="data-input-x w-full px-2.5 py-1.5 text-xs sm:text-sm font-mono bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div class="col-span-5">
+                        <input type="number" step="any" value="${point.y !== '' && point.y !== undefined ? point.y : ''}" placeholder="Y 數值"
+                            oninput="onCellInput(${index}, 'y', this.value)"
+                            onkeydown="handleCellKeydown(event, ${index}, 'y')"
+                            class="data-input-y w-full px-2.5 py-1.5 text-xs sm:text-sm font-mono bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div class="col-span-1 text-center">
+                        <button onclick="removeDataRow(${index})" title="刪除此列" class="text-slate-400 hover:text-rose-600 p-1.5 rounded transition">
+                            <i class="fa-solid fa-xmark text-sm"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function onCellInput(index, field, rawValue) {
+            const g = getCurrentGroup();
+            if (!g) return;
+            if (rawValue.trim() === '') {
+                g.points[index][field] = '';
+            } else {
+                const num = parseFloat(rawValue);
+                g.points[index][field] = isNaN(num) ? '' : num;
+            }
+            updateAll();
+        }
+
+        function handleCellKeydown(event, index, field) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const g = getCurrentGroup();
+                if (field === 'x') {
+                    const yInputs = document.querySelectorAll('.data-input-y');
+                    if (yInputs[index]) yInputs[index].focus();
+                } else if (field === 'y') {
+                    if (index === g.points.length - 1) {
+                        addDataRow('', '', true);
+                    } else {
+                        const xInputs = document.querySelectorAll('.data-input-x');
+                        if (xInputs[index + 1]) xInputs[index + 1].focus();
+                    }
+                }
+            }
+        }
+
+        function addDataRow(xVal = '', yVal = '', focusNew = false) {
+            const g = getCurrentGroup();
+            if (!g) return;
+            g.points.push({ x: xVal, y: yVal });
+            renderTableRows();
+            updateAll();
+
+            if (focusNew) {
+                const container = document.getElementById('dataRowsContainer');
+                container.scrollTop = container.scrollHeight;
+                const xInputs = document.querySelectorAll('.data-input-x');
+                if (xInputs.length > 0) xInputs[xInputs.length - 1].focus();
+            }
+        }
+
+        function removeDataRow(index) {
+            const g = getCurrentGroup();
+            if (!g) return;
+            if (g.points.length <= 1) {
+                g.points[0] = { x: '', y: '' };
+            } else {
+                g.points.splice(index, 1);
+            }
+            renderTableRows();
+            updateAll();
+        }
+
+        function sortCurrentGroupData() {
+            const g = getCurrentGroup();
+            if (!g) return;
+            const valid = g.points.filter(p => typeof p.x === 'number' && !isNaN(p.x));
+            const empty = g.points.filter(p => typeof p.x !== 'number' || isNaN(p.x));
+            valid.sort((a, b) => a.x - b.x);
+            g.points = [...valid, ...empty];
+            renderTableRows();
+            updateAll();
+            showToast(`已排序組別【${g.name}】的數據點`);
+        }
+
+        // --- 核心線性回歸運算 (針對所有組別獨立計算) ---
+        function calculateGroupRegression(points) {
+            const valid = points.filter(p => typeof p.x === 'number' && !isNaN(p.x) && typeof p.y === 'number' && !isNaN(p.y));
+            const n = valid.length;
+            if (n < 2) {
+                return { valid: false, reason: '點數少於 2 個', n, points: valid };
+            }
+
+            let sumX = 0, sumY = 0;
+            for (const p of valid) {
+                sumX += p.x;
+                sumY += p.y;
+            }
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+
+            let ssXX = 0, ssYY = 0, ssXY = 0;
+            for (const p of valid) {
+                const dx = p.x - meanX;
+                const dy = p.y - meanY;
+                ssXX += dx * dx;
+                ssYY += dy * dy;
+                ssXY += dx * dy;
+            }
+
+            if (Math.abs(ssXX) < 1e-14) {
+                return { valid: false, reason: 'X 值全相同（鉛直線）', n, points: valid, meanX, meanY };
+            }
+
+            const m = ssXY / ssXX;
+            const b = meanY - m * meanX;
+
+            let r = 0, r2 = 0;
+            if (Math.abs(ssYY) < 1e-14) {
+                r = 0;
+                r2 = 1;
+            } else {
+                r = ssXY / Math.sqrt(ssXX * ssYY);
+                r2 = r * r;
+            }
+
+            return {
+                valid: true,
+                n,
+                m,
+                b,
+                r,
+                r2,
+                meanX,
+                meanY,
+                points: valid
+            };
+        }
+
+        function updateAll() {
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+            const chartTitle = document.getElementById('chartTitle').value.trim() || '伏安特性曲線';
+            const xTitle = document.getElementById('xTitle').value.trim() || 'X';
+            const xUnit = document.getElementById('xUnit').value.trim();
+            const yTitle = document.getElementById('yTitle').value.trim() || 'Y';
+            const yUnit = document.getElementById('yUnit').value.trim();
+
+            const fullX = xUnit ? `${xTitle} [${xUnit}]` : xTitle;
+            const fullY = yUnit ? `${yTitle} [${yUnit}]` : yTitle;
+
+            document.getElementById('tableHeaderX').textContent = `X (${fullX})`;
+            document.getElementById('tableHeaderY').textContent = `Y (${fullY})`;
+
+            document.getElementById('predLabelX1').textContent = xTitle;
+            document.getElementById('predLabelY1').textContent = yTitle;
+            document.getElementById('predLabelX2').textContent = xTitle;
+            document.getElementById('predLabelY2').textContent = yTitle;
+            document.getElementById('predUnitX1').textContent = xUnit;
+            document.getElementById('predUnitY1').textContent = yUnit;
+            document.getElementById('predUnitX2').textContent = xUnit;
+            document.getElementById('predUnitY2').textContent = yUnit;
+
+            // 計算每一組別的回歸參數
+            groupRegressions = {};
+            groups.forEach(g => {
+                groupRegressions[g.id] = calculateGroupRegression(g.points);
+            });
+
+            // 更新右側成果對照看板
+            renderSummaryCards(precision, xUnit, yUnit);
+
+            // 更新圖表
+            updateChart(chartTitle, fullX, fullY);
+
+            // 更新預測計算機
+            calculatePredictY();
+            calculatePredictX();
+        }
+
+        // 渲染各組統計成果摘要卡片
+        function renderSummaryCards(precision, xUnit, yUnit) {
+            const container = document.getElementById('groupStatsSummaryContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const slopeUnitText = (xUnit && yUnit) ? `${yUnit}/${xUnit}` : (yUnit || (xUnit ? `1/${xUnit}` : ''));
+
+            groups.forEach(g => {
+                const reg = groupRegressions[g.id];
+                const card = document.createElement('div');
+                card.className = `p-3.5 rounded-xl border transition ${
+                    g.id === activeGroupId 
+                        ? 'border-brand-300 bg-brand-50/40 shadow-xs ring-1 ring-brand-400/40' 
+                        : 'border-slate-200 bg-slate-50/60'
+                }`;
+
+                if (!reg || !reg.valid) {
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between mb-2 pb-1 border-b border-slate-200/80">
+                            <span class="font-bold text-sm flex items-center space-x-1.5" style="color: ${g.color}">
+                                <span class="w-3 h-3 rounded-full inline-block" style="background-color: ${g.color}"></span>
+                                <span>${g.name}</span>
+                            </span>
+                            <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">N=${reg ? reg.n : 0}</span>
+                        </div>
+                        <div class="text-xs text-slate-400 py-3 text-center">需要至少 2 筆有效數據</div>
+                    `;
+                } else {
+                    const bSign = reg.b >= 0 ? '+' : '-';
+                    const eqStr = `y = ${reg.m.toFixed(precision)}x ${bSign} ${Math.abs(reg.b).toFixed(precision)}`;
+
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/80">
+                            <span class="font-bold text-sm flex items-center space-x-1.5" style="color: ${g.color}">
+                                <span class="w-3 h-3 rounded-full inline-block" style="background-color: ${g.color}"></span>
+                                <span>組別：${g.name}</span>
+                            </span>
+                            <span class="text-[10px] bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">N=${reg.n}</span>
+                        </div>
+                        <div class="text-xs font-mono font-bold text-slate-800 bg-white p-2 rounded-lg border border-slate-200 mb-2 truncate" title="${eqStr}">
+                            ${eqStr}
+                        </div>
+                        <div class="space-y-1 text-xs">
+                            <div class="flex justify-between items-center text-slate-600">
+                                <span>斜率 (m)：</span>
+                                <span class="font-mono font-bold text-slate-900">${reg.m.toFixed(precision)} <span class="text-[10px] font-normal text-slate-400">${slopeUnitText}</span></span>
+                            </div>
+                            <div class="flex justify-between items-center text-slate-600">
+                                <span>截距 (b)：</span>
+                                <span class="font-mono font-bold text-slate-900">${reg.b.toFixed(precision)}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-slate-600">
+                                <span>判定係數 (R²)：</span>
+                                <span class="font-mono font-bold text-emerald-600">${reg.r2.toFixed(precision)}</span>
+                            </div>
+                            <div class="pt-1.5 mt-1 border-t border-slate-200/60 flex justify-between items-center text-[11px] text-slate-500">
+                                <span>&mu;<sub>x</sub>: <strong class="text-slate-700 font-mono">${reg.meanX.toFixed(2)}</strong></span>
+                                <span>&mu;<sub>y</sub>: <strong class="text-slate-700 font-mono">${reg.meanY.toFixed(2)}</strong></span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                container.appendChild(card);
+            });
+        }
+
+        // --- 預測計算機推算 ---
+        function calculatePredictY() {
+            const targetGroupId = document.getElementById('predictGroupSelect')?.value;
+            const reg = groupRegressions[targetGroupId];
+            const valStr = document.getElementById('predictInputX').value;
+            const outEl = document.getElementById('predictOutputY');
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+
+            if (!reg || !reg.valid || valStr.trim() === '') {
+                outEl.textContent = '--';
+                return;
+            }
+            const x = parseFloat(valStr);
+            if (isNaN(x)) {
+                outEl.textContent = '--';
+                return;
+            }
+            const y = reg.m * x + reg.b;
+            outEl.textContent = y.toFixed(precision);
+        }
+
+        function calculatePredictX() {
+            const targetGroupId = document.getElementById('predictGroupSelect')?.value;
+            const reg = groupRegressions[targetGroupId];
+            const valStr = document.getElementById('predictInputY').value;
+            const outEl = document.getElementById('predictOutputX');
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+
+            if (!reg || !reg.valid || valStr.trim() === '' || Math.abs(reg.m) < 1e-14) {
+                outEl.textContent = '--';
+                return;
+            }
+            const y = parseFloat(valStr);
+            if (isNaN(y)) {
+                outEl.textContent = '--';
+                return;
+            }
+            const x = (y - reg.b) / reg.m;
+            outEl.textContent = x.toFixed(precision);
+        }
+
+        // --- 幾何標記圖形 Canvas 產生器 ---
+        function createShapeMarkerCanvas(shape, size, color) {
+            const canvas = document.createElement('canvas');
+            const dim = (size + 4) * 2;
+            canvas.width = dim;
+            canvas.height = dim;
+            const ctx = canvas.getContext('2d');
+            const cx = dim / 2;
+            const cy = dim / 2;
+            const r = size;
+
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.8;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            ctx.beginPath();
+            if (shape === 'square') {
+                const s = r * 1.6;
+                ctx.rect(cx - s/2, cy - s/2, s, s);
+                ctx.fill();
+                ctx.stroke();
+            } else if (shape === 'triangle') {
+                for (let i = 0; i < 3; i++) {
+                    const ang = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
+                    const px = cx + r * 1.25 * Math.cos(ang);
+                    const py = cy + r * 1.25 * Math.sin(ang);
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (shape === 'diamond') {
+                const dr = r * 1.3;
+                ctx.moveTo(cx, cy - dr);
+                ctx.lineTo(cx + dr * 0.85, cy);
+                ctx.lineTo(cx, cy + dr);
+                ctx.lineTo(cx - dr * 0.85, cy);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (shape === 'star') {
+                const spikes = 5;
+                const outR = r * 1.3;
+                const inR = r * 0.55;
+                for (let i = 0; i < spikes * 2; i++) {
+                    const rad = i % 2 === 0 ? outR : inR;
+                    const ang = -Math.PI / 2 + (i * Math.PI) / spikes;
+                    const px = cx + rad * Math.cos(ang);
+                    const py = cy + rad * Math.sin(ang);
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (shape === 'hexagon') {
+                for (let i = 0; i < 6; i++) {
+                    const ang = -Math.PI / 2 + (i * Math.PI) / 3;
+                    const px = cx + r * 1.15 * Math.cos(ang);
+                    const py = cy + r * 1.15 * Math.sin(ang);
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (shape === 'cross' || shape === 'xmark') {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = Math.max(3, r * 0.45);
+                const arm = r * 1.1;
+                if (shape === 'cross') {
+                    ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+                    ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+                } else {
+                    const d = arm * 0.75;
+                    ctx.moveTo(cx - d, cy - d); ctx.lineTo(cx + d, cy + d);
+                    ctx.moveTo(cx + d, cy - d); ctx.lineTo(cx - d, cy + d);
+                }
+                ctx.stroke();
+            } else {
+                // 預設圓形 circle
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            ctx.restore();
+            return canvas;
+        }
+
+        // --- 圖表標籤插件 (顯示坐標值) ---
+        const dataLabelsPlugin = {
+            id: 'multiGroupLabelsPlugin',
+            afterDatasetsDraw: (chart) => {
+                const showLabels = document.getElementById('showDataLabelsToggle')?.checked;
+                if (!showLabels) return;
+
+                const { ctx } = chart;
+                ctx.save();
+                ctx.font = "600 10px 'JetBrains Mono', monospace";
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+
+                chart.data.datasets.forEach((dataset, dsIndex) => {
+                    // 只為 scatter 數據點標註，忽略 line dataset
+                    if (dataset.type === 'line') return;
+                    const meta = chart.getDatasetMeta(dsIndex);
+                    ctx.fillStyle = dataset.metaColor || '#334155';
+                    meta.data.forEach((element, i) => {
+                        const pt = dataset.data[i];
+                        if (pt) {
+                            ctx.fillText(`(${pt.x}, ${pt.y})`, element.x + 8, element.y - 3);
+                        }
+                    });
+                });
+
+                ctx.restore();
+            }
+        };
+
+        function initChart() {
+            const ctx = document.getElementById('regressionChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 150 },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 14,
+                                font: { family: "'Inter', 'Noto Sans TC', sans-serif", size: 12, weight: '600' }
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '',
+                            font: { family: "'Inter', 'Noto Sans TC', sans-serif", size: 15, weight: 'bold' },
+                            color: '#0f172a',
+                            padding: { top: 4, bottom: 12 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                            padding: 10,
+                            cornerRadius: 8,
+                            titleFont: { family: "'Inter', 'Noto Sans TC', sans-serif", size: 12 },
+                            bodyFont: { family: "'JetBrains Mono', monospace", size: 12 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'X 軸',
+                                font: { family: "'Inter', 'Noto Sans TC', sans-serif", size: 13, weight: 'bold' },
+                                color: '#334155'
+                            },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        y: {
+                            type: 'linear',
+                            title: {
+                                display: true,
+                                text: 'Y 軸',
+                                font: { family: "'Inter', 'Noto Sans TC', sans-serif", size: 13, weight: 'bold' },
+                                color: '#334155'
+                            },
+                            grid: { color: '#f1f5f9' }
+                        }
+                    }
+                },
+                plugins: [dataLabelsPlugin]
+            });
+        }
+
+        function updateChart(chartTitle, fullXLabel, fullYLabel) {
+            if (!chartInstance) return;
+
+            const beginAtZero = document.getElementById('beginAtZeroToggle').checked;
+            const pointSize = parseInt(document.getElementById('pointSizeSlider').value, 10) || 7;
+            const lineWidth = parseFloat(document.getElementById('lineWidthSlider').value) || 2.5;
+            const showLine = document.getElementById('showLineToggle').checked;
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+
+            // 尋找全體有效 X 範圍，以便合理延伸直線
+            let allValidX = [];
+            groups.forEach(g => {
+                const reg = groupRegressions[g.id];
+                if (reg && reg.valid) {
+                    reg.points.forEach(p => allValidX.push(p.x));
+                }
+            });
+
+            let globalMinX = allValidX.length > 0 ? Math.min(...allValidX) : 0;
+            let globalMaxX = allValidX.length > 0 ? Math.max(...allValidX) : 10;
+            if (beginAtZero && globalMinX > 0) globalMinX = 0;
+            const span = globalMaxX - globalMinX;
+            const pad = span > 0 ? span * 0.08 : 1;
+            const lineStartX = beginAtZero && globalMinX === 0 ? 0 : globalMinX - pad;
+            const lineEndX = globalMaxX + pad;
+
+            const newDatasets = [];
+
+            // 為每一組別建立 (1) Scatter 數據點 (2) Line 回歸直線
+            groups.forEach(g => {
+                const reg = groupRegressions[g.id];
+                const markerCanvas = createShapeMarkerCanvas(g.shape, pointSize, g.color);
+
+                // 數據點集
+                newDatasets.push({
+                    type: 'scatter',
+                    label: `${g.name} 數據點`,
+                    data: (reg ? reg.points : []),
+                    pointStyle: markerCanvas,
+                    pointRadius: pointSize,
+                    pointHoverRadius: pointSize + 3,
+                    backgroundColor: g.color,
+                    borderColor: g.color,
+                    metaColor: g.color,
+                    order: 1
+                });
+
+                // 回歸直線集
+                if (showLine && reg && reg.valid) {
+                    const bSign = reg.b >= 0 ? '+' : '-';
+                    newDatasets.push({
+                        type: 'line',
+                        label: `${g.name} 直線 (y=${reg.m.toFixed(precision)}x${bSign}${Math.abs(reg.b).toFixed(precision)})`,
+                        data: [
+                            { x: lineStartX, y: reg.m * lineStartX + reg.b },
+                            { x: lineEndX,   y: reg.m * lineEndX + reg.b }
+                        ],
+                        borderColor: g.color,
+                        borderWidth: lineWidth,
+                        pointRadius: 0,
+                        pointHoverRadius: 0,
+                        fill: false,
+                        tension: 0,
+                        order: 2
+                    });
+                }
+            });
+
+            chartInstance.data.datasets = newDatasets;
+            chartInstance.options.plugins.title.text = chartTitle;
+            chartInstance.options.scales.x.title.text = fullXLabel;
+            chartInstance.options.scales.y.title.text = fullYLabel;
+            chartInstance.options.scales.x.beginAtZero = beginAtZero;
+            chartInstance.options.scales.y.beginAtZero = beginAtZero;
+
+            chartInstance.update();
+        }
+
+        // --- 匯出功能 ---
+        function downloadChartImage() {
+            if (!chartInstance) return;
+            const title = document.getElementById('chartTitle').value.trim() || '多組別線性回歸圖表';
+            const link = document.createElement('a');
+            link.download = `${title}.png`;
+            link.href = chartInstance.toBase64Image('image/png', 1.0);
+            link.click();
+            showToast('已下載圖表 PNG 圖片');
+        }
+
+        function exportCSV() {
+            const xTitle = document.getElementById('xTitle').value.trim() || 'X';
+            const xUnit = document.getElementById('xUnit').value.trim();
+            const yTitle = document.getElementById('yTitle').value.trim() || 'Y';
+            const yUnit = document.getElementById('yUnit').value.trim();
+
+            let csv = '\uFEFF"組別","' + (xUnit ? `${xTitle}(${xUnit})` : xTitle) + '","' + (yUnit ? `${yTitle}(${yUnit})` : yTitle) + '"\n';
+            groups.forEach(g => {
+                g.points.forEach(p => {
+                    if (p.x !== '' || p.y !== '') {
+                        csv += `"${g.name}",${p.x},${p.y}\n`;
+                    }
+                });
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${document.getElementById('chartTitle').value.trim() || '多組實驗數據'}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+            showToast('已匯出所有組別 CSV 檔案');
+        }
+
+        // --- 批次貼上視窗 ---
+        function openBatchModal() {
+            const g = getCurrentGroup();
+            document.getElementById('batchModalTitle').textContent = `批次輸入數據 - 【${g.name}】`;
+            const modal = document.getElementById('batchModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('batchTextarea').focus();
+        }
+
+        function closeBatchModal() {
+            const modal = document.getElementById('batchModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function applyBatchData() {
+            const rawText = document.getElementById('batchTextarea').value.trim();
+            const replace = document.getElementById('batchReplaceToggle').checked;
+            const g = getCurrentGroup();
+            if (!rawText || !g) return;
+
+            const lines = rawText.split(/\r?\n/);
+            const parsed = [];
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                const parts = trimmed.split(/[\s,;|\t]+/);
+                if (parts.length >= 2) {
+                    const x = parseFloat(parts[0]);
+                    const y = parseFloat(parts[1]);
+                    if (!isNaN(x) && !isNaN(y)) {
+                        parsed.push({ x, y });
+                    }
+                }
+            }
+
+            if (parsed.length === 0) {
+                showToast('未偵測到有效數值配對', 'info');
+                return;
+            }
+
+            if (replace) {
+                g.points = parsed;
+            } else {
+                const nonEmpty = g.points.filter(p => p.x !== '' || p.y !== '');
+                g.points = [...nonEmpty, ...parsed];
+            }
+
+            renderGroupTabs();
+            renderTableRows();
+            updateAll();
+            closeBatchModal();
+            document.getElementById('batchTextarea').value = '';
+            showToast(`成功匯入 ${parsed.length} 筆數據至【${g.name}】`);
+        }
+
+        // --- Toast 提示 ---
+        let toastTimer = null;
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toastNotification');
+            const msgEl = document.getElementById('toastMessage');
+            const iconEl = document.getElementById('toastIcon');
+
+            msgEl.textContent = message;
+            if (type === 'info') {
+                iconEl.className = 'fa-solid fa-circle-info text-sky-400 text-base';
+            } else {
+                iconEl.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
