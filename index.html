@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>線性回歸直線繪圖與計算器 | 科學數據分析工具</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 自訂捲軸樣式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* 移除數字輸入框預設箭頭 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-900 leading-tight">線性回歸直線繪圖與計算器</h1>
+                    <p class="text-xs text-slate-500 hidden sm:block">最小平方法 (Least Squares) 科學實驗數據分析工具</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- 範例選擇下拉選單 -->
+                <div class="relative inline-block text-left">
+                    <select id="presetSelect" onchange="loadPreset(this.value)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium py-2 pl-3 pr-8 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 transition cursor-pointer">
+                        <option value="" disabled selected>載入範例數據...</option>
+                        <option value="hooke">虎克定律 (彈簧伸長量 vs 外力)</option>
+                        <option value="ohm">歐姆定律 (電壓 vs 電流)</option>
+                        <option value="motion">等速度運動 (時間 vs 位移)</option>
+                        <option value="thermal">熱膨脹實驗 (溫度 vs 金屬棒長度)</option>
+                        <option value="temp">溫度轉換 (攝氏 vs 華氏)</option>
+                    </select>
+                </div>
+
+                <!-- 批次貼上按鈕 -->
+                <button onclick="openBatchModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-medium py-2 px-3 rounded-lg shadow-sm transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-paste text-brand-600"></i>
+                    <span>批次輸入</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- 左側欄：設定與數據輸入 (佔 5 欄) -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- 1. 圖表與軸線設定卡片 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-sliders text-brand-600"></i>
+                            <span>圖表與座標軸設定</span>
+                        </h2>
+                        <span class="text-xs text-slate-400">即時更新圖表</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        <!-- 圖表主標題 -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">圖表標題</label>
+                            <input type="text" id="chartTitle" value="彈簧外力與伸長量關係圖" oninput="updateAll()" placeholder="例如：物理實驗數據回歸分析" 
+                                class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition">
+                        </div>
+
+                        <!-- 橫軸 (X 軸) 設定 -->
+                        <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1"></span>橫軸 (X) 標題
+                                </label>
+                                <input type="text" id="xTitle" value="外力 F" oninput="updateAll()" placeholder="例如：時間 t" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">橫軸單位</label>
+                                <input type="text" id="xUnit" value="N" oninput="updateAll()" placeholder="例如：s" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none transition">
+                            </div>
+                        </div>
+
+                        <!-- 縱軸 (Y 軸) 設定 -->
+                        <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>縱軸 (Y) 標題
+                                </label>
+                                <input type="text" id="yTitle" value="伸長量 x" oninput="updateAll()" placeholder="例如：位移 d" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">縱軸單位</label>
+                                <input type="text" id="yUnit" value="cm" oninput="updateAll()" placeholder="例如：m" 
+                                    class="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none transition">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 數據點輸入表格卡片 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-table-list text-brand-600"></i>
+                            <h2 class="font-bold text-slate-800">實驗數據點</h2>
+                            <span id="pointCountBadge" class="bg-brand-50 text-brand-700 text-xs font-bold px-2 py-0.5 rounded-full border border-brand-200">0 點</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="sortDataByX()" title="依 X 值由小到大排序" class="text-xs text-slate-600 hover:text-brand-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition flex items-center space-x-1">
+                                <i class="fa-solid fa-arrow-down-1-9"></i>
+                                <span>排序</span>
+                            </button>
+                            <button onclick="clearAllData()" title="清空所有數據" class="text-xs text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 px-2.5 py-1.5 rounded-lg transition flex items-center space-x-1">
+                                <i class="fa-solid fa-trash-can"></i>
+                                <span>清空</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 表頭 -->
+                    <div class="grid grid-cols-12 gap-2 px-2 py-2 bg-slate-100 rounded-t-xl text-xs font-bold text-slate-600 border-b border-slate-200">
+                        <div class="col-span-1 text-center">#</div>
+                        <div class="col-span-5" id="tableHeaderX">X (外力 F [N])</div>
+                        <div class="col-span-5" id="tableHeaderY">Y (伸長量 x [cm])</div>
+                        <div class="col-span-1 text-center">操作</div>
+                    </div>
+
+                    <!-- 可捲動數據列容器 -->
+                    <div id="dataRowsContainer" class="divide-y divide-slate-100 max-h-[340px] overflow-y-auto border-x border-b border-slate-200 rounded-b-xl mb-4">
+                        <!-- 由 JavaScript 動態產生列 -->
+                    </div>
+
+                    <!-- 底部操作按鈕 -->
+                    <div class="flex items-center space-x-3 mt-auto">
+                        <button onclick="addDataRow('', '', true)" class="flex-1 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold py-2.5 px-4 rounded-xl border border-brand-200 transition flex items-center justify-center space-x-2 text-sm shadow-sm">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>新增一組數據點</span>
+                        </button>
+                        <button onclick="exportCSV()" title="匯出 CSV 檔案" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition flex items-center space-x-1.5 text-sm">
+                            <i class="fa-solid fa-file-csv text-emerald-600"></i>
+                            <span>匯出 CSV</span>
+                        </button>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- 右側欄：統計結果、圖表與預測工具 (佔 7 欄) -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- 1. 核心回歸方程式與關鍵指標橫幅 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-square-root-variable text-brand-600"></i>
+                            <span>線性回歸計算結果 (最小平方法)</span>
+                        </h2>
+                        <div class="flex items-center space-x-2 text-xs">
+                            <label for="precisionSelect" class="text-slate-500 font-medium">小數位數：</label>
+                            <select id="precisionSelect" onchange="updateAll()" class="bg-slate-100 text-slate-700 font-semibold px-2 py-1 rounded-md border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500">
+                                <option value="2">2 位</option>
+                                <option value="3">3 位</option>
+                                <option value="4" selected>4 位</option>
+                                <option value="5">5 位</option>
+                                <option value="6">6 位</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 回歸方程式顯示盒 -->
+                    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-xl p-4 text-white shadow-inner mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <div class="text-xs text-indigo-300 font-medium mb-1 flex items-center space-x-1.5">
+                                <span>最佳擬合直線方程式 (y = mx + b)</span>
+                            </div>
+                            <div id="equationDisplay" class="text-xl sm:text-2xl font-mono font-bold tracking-wide text-amber-300 break-all">
+                                y = 2.0100x + 0.0800
+                            </div>
+                            <div id="physicalEquationDisplay" class="text-xs text-slate-300 mt-1 font-mono">
+                                伸長量 x (cm) = 2.0100 × 外力 F (N) + 0.0800
+                            </div>
+                        </div>
+                        <button onclick="copyEquation()" class="self-start sm:self-center shrink-0 bg-white/10 hover:bg-white/20 text-white text-xs font-medium py-2 px-3 rounded-lg border border-white/15 transition flex items-center space-x-1.5">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>複製公式</span>
+                        </button>
+                    </div>
+
+                    <!-- 四大核心統計指標卡片 -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                        <!-- 斜率 m -->
+                        <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 relative overflow-hidden">
+                            <div class="text-xs font-semibold text-indigo-600 mb-1 flex items-center justify-between">
+                                <span>斜率 (Slope, m)</span>
+                                <i class="fa-solid fa-arrow-trend-up opacity-60"></i>
+                            </div>
+                            <div id="slopeValue" class="text-lg sm:text-xl font-bold font-mono text-slate-900 truncate">2.0100</div>
+                            <div id="slopeUnit" class="text-[11px] text-slate-500 mt-0.5 truncate">單位: cm / N</div>
+                        </div>
+
+                        <!-- Y 截距 b -->
+                        <div class="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3.5">
+                            <div class="text-xs font-semibold text-emerald-700 mb-1 flex items-center justify-between">
+                                <span>Y 軸截距 (b)</span>
+                                <i class="fa-solid fa-arrows-up-down opacity-60"></i>
+                            </div>
+                            <div id="interceptValue" class="text-lg sm:text-xl font-bold font-mono text-slate-900 truncate">0.0800</div>
+                            <div id="interceptUnit" class="text-[11px] text-slate-500 mt-0.5 truncate">單位: cm</div>
+                        </div>
+
+                        <!-- 決定係數 R² -->
+                        <div class="bg-amber-50/70 border border-amber-100 rounded-xl p-3.5">
+                            <div class="text-xs font-semibold text-amber-700 mb-1 flex items-center justify-between">
+                                <span>決定係數 (R²)</span>
+                                <i class="fa-solid fa-bullseye opacity-60"></i>
+                            </div>
+                            <div id="r2Value" class="text-lg sm:text-xl font-bold font-mono text-slate-900 truncate">0.9992</div>
+                            <div id="fitQualityBadge" class="text-[11px] font-medium text-emerald-600 mt-0.5">擬合度極佳</div>
+                        </div>
+
+                        <!-- 相關係數 R -->
+                        <div class="bg-sky-50/70 border border-sky-100 rounded-xl p-3.5">
+                            <div class="text-xs font-semibold text-sky-700 mb-1 flex items-center justify-between">
+                                <span>相關係數 (R)</span>
+                                <i class="fa-solid fa-link opacity-60"></i>
+                            </div>
+                            <div id="rValue" class="text-lg sm:text-xl font-bold font-mono text-slate-900 truncate">0.9996</div>
+                            <div id="corrTypeBadge" class="text-[11px] text-slate-500 mt-0.5">高度正相關</div>
+                        </div>
+                    </div>
+
+                    <!-- 次要統計資訊列 -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 rounded-xl p-2.5 border border-slate-200/60 text-center text-xs">
+                        <div>
+                            <span class="text-slate-500 block sm:inline">樣本數 (N)：</span>
+                            <span id="statN" class="font-mono font-bold text-slate-800">5</span>
+                        </div>
+                        <div class="border-x border-slate-200">
+                            <span class="text-slate-500 block sm:inline">X 平均值 (&mu;<sub>x</sub>)：</span>
+                            <span id="statMeanX" class="font-mono font-bold text-slate-800">3.0000</span>
+                        </div>
+                        <div class="sm:border-r border-slate-200">
+                            <span class="text-slate-500 block sm:inline">Y 平均值 (&mu;<sub>y</sub>)：</span>
+                            <span id="statMeanY" class="font-mono font-bold text-slate-800">6.1100</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 block sm:inline">標準誤差 (S<sub>yx</sub>)：</span>
+                            <span id="statStdErr" class="font-mono font-bold text-slate-800">0.0387</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 互動式回歸直線圖表與多元圖案設定卡片 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-shapes text-brand-600"></i>
+                            <h2 class="font-bold text-slate-800">線性回歸視覺化圖表</h2>
+                        </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            <!-- 顯示原點開關 -->
+                            <label class="inline-flex items-center space-x-1.5 text-xs text-slate-600 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition select-none">
+                                <input type="checkbox" id="beginAtZeroToggle" onchange="updateAll()" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>包含原點 (0,0)</span>
+                            </label>
+                            
+                            <!-- 下載圖片按鈕 -->
+                            <button onclick="downloadChartImage()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium py-1.5 px-3 rounded-lg shadow-sm transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-download"></i>
+                                <span>下載圖片 (PNG)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 視覺化圖案與樣式控制面板 -->
+                    <div class="bg-slate-50/90 rounded-2xl border border-slate-200/80 p-4 mb-4 space-y-4">
+                        <!-- 第一排：數據點幾何圖案選擇器 (9 種圖案按鈕) -->
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-shapes text-brand-600"></i>
+                                    <span>數據點幾何圖案 (Point Marker Shape)</span>
+                                </label>
+                                <span id="currentShapeLabel" class="text-[11px] font-medium text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-200">圓形 (Circle)</span>
+                            </div>
+                            <div class="grid grid-cols-3 sm:grid-cols-9 gap-1.5" id="shapeButtonsContainer">
+                                <button type="button" onclick="selectPointShape('circle', '圓形 (Circle)')" data-shape="circle" class="shape-btn active-shape flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+                                    <span class="text-[10px]">圓形</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('square', '正方形 (Square)')" data-shape="square" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>
+                                    <span class="text-[10px]">正方形</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('triangle', '正三角形 (Triangle)')" data-shape="triangle" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,4 21,19 3,19"/></svg>
+                                    <span class="text-[10px]">三角形</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('diamond', '菱形 (Diamond)')" data-shape="diamond" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,3 21,12 12,21 3,12"/></svg>
+                                    <span class="text-[10px]">菱形</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('star', '五角星形 (Star)')" data-shape="star" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                                    <span class="text-[10px]">星形</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('hexagon', '六角形 (Hexagon)')" data-shape="hexagon" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 20.66,7 20.66,17 12,22 3.34,17 3.34,7"/></svg>
+                                    <span class="text-[10px]">六角形</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('cross', '十字號 (Cross/+)')" data-shape="cross" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><line x1="12" y1="4" x2="12" y2="20"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+                                    <span class="text-[10px]">十字號</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('xmark', '叉號 (X-Mark)')" data-shape="xmark" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+                                    <span class="text-[10px]">叉號 X</span>
+                                </button>
+                                <button type="button" onclick="selectPointShape('ring', '同心圓環 (Ring)')" data-shape="ring" class="shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-xs font-medium transition">
+                                    <svg class="w-4 h-4 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+                                    <span class="text-[10px]">雙圓環</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 第二排：填滿模式、圖案大小、直線樣式、配色主題與網格 -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-200/70">
+                            <!-- 填滿模式與大小 -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1">圖案填滿模式</label>
+                                <select id="pointFillMode" onchange="updateAll()" class="w-full bg-white text-slate-700 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                                    <option value="solid" selected>實心填滿 (Solid)</option>
+                                    <option value="hollow">空心外框 (Hollow)</option>
+                                    <option value="glow">雙層光暈 (Glow)</option>
+                                </select>
+                                <div class="mt-2 flex items-center justify-between text-[11px] text-slate-600">
+                                    <span>圖案大小：<strong id="pointSizeLabel" class="font-mono text-brand-600">8</strong> px</span>
+                                    <input type="range" id="pointSizeSlider" min="4" max="16" value="8" oninput="document.getElementById('pointSizeLabel').textContent=this.value; updateAll()" class="w-24 accent-brand-600 cursor-pointer">
+                                </div>
+                            </div>
+
+                            <!-- 回歸直線樣式與粗細 -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1">回歸直線樣式 (Line Pattern)</label>
+                                <select id="linePatternSelect" onchange="updateAll()" class="w-full bg-white text-slate-700 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                                    <option value="solid" selected>─── 實線 (Solid)</option>
+                                    <option value="dashed">- - - 虛線 (Dashed)</option>
+                                    <option value="dotted">······ 點線 (Dotted)</option>
+                                    <option value="dashdot">-·-·- 點劃線 (Dash-Dot)</option>
+                                </select>
+                                <div class="mt-2 flex items-center justify-between text-[11px] text-slate-600">
+                                    <span>線條粗細：<strong id="lineWidthLabel" class="font-mono text-brand-600">2.5</strong> px</span>
+                                    <input type="range" id="lineWidthSlider" min="1" max="6" step="0.5" value="2.5" oninput="document.getElementById('lineWidthLabel').textContent=this.value; updateAll()" class="w-24 accent-brand-600 cursor-pointer">
+                                </div>
+                            </div>
+
+                            <!-- 配色主題 -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1">專業配色主題</label>
+                                <select id="colorThemeSelect" onchange="updateAll()" class="w-full bg-white text-slate-700 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                                    <option value="classic" selected>經典科研藍 (靛藍點 / 緋紅線)</option>
+                                    <option value="emerald">翡翠森林 (翠綠點 / 琥珀線)</option>
+                                    <option value="coral">活力珊瑚 (橘紅點 / 深紫線)</option>
+                                    <option value="neon">暗夜霓虹 (深色背景 / 青色螢光)</option>
+                                    <option value="academic">學術論文黑白 (純黑幾何 / 印刷風)</option>
+                                </select>
+                                <div class="mt-2 flex items-center space-x-1.5 text-[11px] text-slate-500">
+                                    <span>主題預覽：</span>
+                                    <span id="themePreviewDot" class="inline-block w-3 h-3 rounded-full bg-indigo-600 border border-white shadow-xs"></span>
+                                    <span id="themePreviewLine" class="inline-block w-5 h-1 rounded bg-rose-500"></span>
+                                </div>
+                            </div>
+
+                            <!-- 背景網格樣式 -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1">背景網格樣式 (Grid Style)</label>
+                                <select id="gridStyleSelect" onchange="updateAll()" class="w-full bg-white text-slate-700 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                                    <option value="solid" selected>標準方格線 (Solid Grid)</option>
+                                    <option value="dashed">細密虛線方格 (Dashed Grid)</option>
+                                    <option value="minimal">極簡無網格 (僅留座標軸)</option>
+                                </select>
+                                <div class="mt-2 text-[11px] text-slate-400 truncate">
+                                    支援高解析度匯出保留設定
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 第三排：進階科學視覺化圖層開關 -->
+                        <div class="pt-2.5 border-t border-slate-200/70 flex flex-wrap items-center gap-2">
+                            <span class="text-[11px] font-bold text-slate-600 mr-1 flex items-center space-x-1">
+                                <i class="fa-solid fa-layer-group text-brand-600"></i>
+                                <span>進階圖層：</span>
+                            </span>
+
+                            <label class="inline-flex items-center space-x-1.5 text-xs bg-white hover:bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 cursor-pointer transition select-none shadow-2xs">
+                                <input type="checkbox" id="showResidualsToggle" onchange="updateAll()" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>殘差垂直連線 (Residuals)</span>
+                            </label>
+
+                            <label class="inline-flex items-center space-x-1.5 text-xs bg-white hover:bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 cursor-pointer transition select-none shadow-2xs">
+                                <input type="checkbox" id="showCentroidToggle" checked onchange="updateAll()" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>平均中心靶心 $(\bar{x}, \bar{y})$</span>
+                            </label>
+
+                            <label class="inline-flex items-center space-x-1.5 text-xs bg-white hover:bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 cursor-pointer transition select-none shadow-2xs">
+                                <input type="checkbox" id="showConfidenceToggle" onchange="updateAll()" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>95% 信賴區間帶陰影</span>
+                            </label>
+
+                            <label class="inline-flex items-center space-x-1.5 text-xs bg-white hover:bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 cursor-pointer transition select-none shadow-2xs">
+                                <input type="checkbox" id="showDataLabelsToggle" onchange="updateAll()" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>顯示座標數值 (x, y)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 圖表 Canvas 外框 -->
+                    <div id="chartCanvasContainer" class="relative w-full h-[380px] sm:h-[440px] bg-white rounded-xl border border-slate-200 p-2 transition-colors duration-200">
+                        <canvas id="regressionChart"></canvas>
+                        
+                        <!-- 當有效點數少於 2 時的覆蓋提示 -->
+                        <div id="chartEmptyOverlay" class="hidden absolute inset-0 bg-white/90 backdrop-blur-xs rounded-xl flex flex-col items-center justify-center text-center p-6">
+                            <div class="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-3 text-xl">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-800 text-base mb-1">需要至少 2 組有效的 (X, Y) 數據點</h3>
+                            <p class="text-xs text-slate-500 max-w-xs">請在左側表格中輸入至少兩組不同的數據座標，系統將自動為您繪製回歸直線並計算斜率。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. 內插 / 外插預測計算機 -->
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-calculator text-brand-600"></i>
+                            <span>回歸預測計算機（內插與外插推算）</span>
+                        </h2>
+                        <span class="text-xs text-slate-400">自動代入目前回歸公式</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- 輸入 X 預測 Y -->
+                        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                            <div class="text-xs font-semibold text-slate-700 mb-2 flex items-center justify-between">
+                                <span>已知橫軸 <span id="predLabelX1" class="text-brand-600">外力 F</span>，預測縱軸 <span id="predLabelY1" class="text-emerald-600">伸長量 x</span></span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="relative flex-1">
+                                    <input type="number" step="any" id="predictInputX" oninput="calculatePredictY()" placeholder="輸入 X 值" 
+                                        class="w-full pl-3 pr-8 py-2 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none font-mono">
+                                    <span id="predUnitX1" class="absolute right-2.5 top-2.5 text-xs text-slate-400">N</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right text-slate-400 text-xs"></i>
+                                <div class="flex-1 bg-white px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm font-bold text-emerald-700 flex items-center justify-between">
+                                    <span id="predictOutputY">--</span>
+                                    <span id="predUnitY1" class="text-xs font-normal text-slate-400 ml-1">cm</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 輸入 Y 反推 X -->
+                        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                            <div class="text-xs font-semibold text-slate-700 mb-2 flex items-center justify-between">
+                                <span>已知縱軸 <span id="predLabelY2" class="text-emerald-600">伸長量 x</span>，反推橫軸 <span id="predLabelX2" class="text-brand-600">外力 F</span></span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="relative flex-1">
+                                    <input type="number" step="any" id="predictInputY" oninput="calculatePredictX()" placeholder="輸入 Y 值" 
+                                        class="w-full pl-3 pr-8 py-2 text-sm bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none font-mono">
+                                    <span id="predUnitY2" class="absolute right-2.5 top-2.5 text-xs text-slate-400">cm</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right text-slate-400 text-xs"></i>
+                                <div class="flex-1 bg-white px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm font-bold text-brand-700 flex items-center justify-between">
+                                    <span id="predictOutputX">--</span>
+                                    <span id="predUnitX2" class="text-xs font-normal text-slate-400 ml-1">N</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+            <div>
+                <span>最小平方法公式：</span>
+                <span class="font-mono">$m = \frac{\sum(x_i - \bar{x})(y_i - \bar{y})}{\sum(x_i - \bar{x})^2}$</span>，
+                <span class="font-mono">$b = \bar{y} - m\bar{x}$</span>
+            </div>
+            <div>支援直接從 Excel 或 Google 試算表複製貼上數據</div>
+        </div>
+    </footer>
+
+    <!-- 批次輸入數據 Modal 彈跳視窗 -->
+    <div id="batchModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden animate-fade-in">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-paste text-brand-600"></i>
+                    <span>批次貼上 / 快速輸入數據</span>
+                </h3>
+                <button onclick="closeBatchModal()" class="text-slate-400 hover:text-slate-600 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    請在下方輸入或貼上數據，<strong>每一行代表一組 (X, Y) 座標</strong>。支援使用「逗號 <code class="bg-slate-100 px-1 rounded">,</code>」、「空格」或「Tab (從 Excel 直接複製兩欄)」分隔。
+                </p>
+                <textarea id="batchTextarea" rows="8" placeholder="範例格式：&#10;1.0, 2.1&#10;2.0, 4.05&#10;3.0, 6.15&#10;4.0, 8.1&#10;5.0, 10.1" 
+                    class="w-full p-3 text-sm font-mono bg-slate-50 rounded-xl border border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+                
+                <div class="flex items-center justify-between pt-2">
+                    <label class="inline-flex items-center space-x-2 text-xs text-slate-600 cursor-pointer">
+                        <input type="checkbox" id="batchReplaceToggle" checked class="rounded text-brand-600 focus:ring-brand-500">
+                        <span>覆蓋現有表格數據（取消勾選則附加在後方）</span>
+                    </label>
+                </div>
+            </div>
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2">
+                <button onclick="closeBatchModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition">取消</button>
+                <button onclick="applyBatchData()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-sm transition">確認匯入數據</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 頂部通知 Toast -->
+    <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-2.5 text-xs font-medium border border-slate-700">
+            <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+            <span id="toastMessage">訊息內容</span>
+        </div>
+    </div>
+
+    <script>
+        // --- 全域狀態與預設範例資料 ---
+        let dataPoints = [
+            { x: 1.0, y: 2.10 },
+            { x: 2.0, y: 4.05 },
+            { x: 3.0, y: 6.15 },
+            { x: 4.0, y: 8.10 },
+            { x: 5.0, y: 10.15 }
+        ];
+
+        // 目前計算出的回歸參數 (供預測計算機使用)
+        let currentRegression = {
+            valid: false,
+            m: 0,
+            b: 0,
+            r: 0,
+            r2: 0,
+            meanX: 0,
+            meanY: 0,
+            ssXX: 0,
+            stdErr: 0,
+            n: 0
+        };
+
+        // 視覺化圖案與樣式狀態
+        let currentPointShape = 'circle';
+
+        // 配色主題庫
+        const COLOR_THEMES = {
+            classic: {
+                name: '經典科研藍',
+                canvasBg: '#ffffff',
+                textColor: '#0f172a',
+                subTextColor: '#334155',
+                gridColor: '#e2e8f0',
+                axisColor: '#94a3b8',
+                pointFill: '#4f46e5',
+                pointStroke: '#312e81',
+                pointGlow: 'rgba(99, 102, 241, 0.28)',
+                lineColor: '#f43f5e',
+                residualColor: 'rgba(244, 63, 94, 0.55)',
+                bandFill: 'rgba(244, 63, 94, 0.12)',
+                bandStroke: 'rgba(244, 63, 94, 0.35)',
+                centroidColor: '#10b981',
+                labelColor: '#1e293b'
+            },
+            emerald: {
+                name: '翡翠森林',
+                canvasBg: '#ffffff',
+                textColor: '#064e3b',
+                subTextColor: '#065f46',
+                gridColor: '#d1fae5',
+                axisColor: '#6ee7b7',
+                pointFill: '#059669',
+                pointStroke: '#064e3b',
+                pointGlow: 'rgba(16, 185, 129, 0.28)',
+                lineColor: '#d97706',
+                residualColor: 'rgba(217, 119, 6, 0.55)',
+                bandFill: 'rgba(217, 119, 6, 0.12)',
+                bandStroke: 'rgba(217, 119, 6, 0.35)',
+                centroidColor: '#dc2626',
+                labelColor: '#064e3b'
+            },
+            coral: {
+                name: '活力珊瑚',
+                canvasBg: '#fffbf7',
+                textColor: '#431407',
+                subTextColor: '#7c2d12',
+                gridColor: '#ffedd5',
+                axisColor: '#fdba74',
+                pointFill: '#ea580c',
+                pointStroke: '#9a3412',
+                pointGlow: 'rgba(234, 88, 12, 0.28)',
+                lineColor: '#7c3aed',
+                residualColor: 'rgba(124, 58, 237, 0.5)',
+                bandFill: 'rgba(124, 58, 237, 0.11)',
+                bandStroke: 'rgba(124, 58, 237, 0.32)',
+                centroidColor: '#0284c7',
+                labelColor: '#431407'
+            },
+            neon: {
+                name: '暗夜霓虹',
+                canvasBg: '#0f172a',
+                textColor: '#f8fafc',
+                subTextColor: '#cbd5e1',
+                gridColor: '#1e293b',
+                axisColor: '#475569',
+                pointFill: '#22d3ee',
+                pointStroke: '#0891b2',
+                pointGlow: 'rgba(34, 211, 238, 0.38)',
+                lineColor: '#f472b6',
+                residualColor: 'rgba(244, 114, 182, 0.65)',
+                bandFill: 'rgba(244, 114, 182, 0.15)',
+                bandStroke: 'rgba(244, 114, 182, 0.45)',
+                centroidColor: '#facc15',
+                labelColor: '#e2e8f0'
+            },
+            academic: {
+                name: '學術論文黑白',
+                canvasBg: '#ffffff',
+                textColor: '#000000',
+                subTextColor: '#171717',
+                gridColor: '#e5e5e5',
+                axisColor: '#262626',
+                pointFill: '#171717',
+                pointStroke: '#000000',
+                pointGlow: 'rgba(23, 23, 23, 0.22)',
+                lineColor: '#262626',
+                residualColor: 'rgba(64, 64, 64, 0.65)',
+                bandFill: 'rgba(115, 115, 115, 0.14)',
+                bandStroke: 'rgba(82, 82, 82, 0.45)',
+                centroidColor: '#525252',
+                labelColor: '#000000'
+            }
+        };
+
+        let chartInstance = null;
+
+        // 預設科學實驗範例庫
+        const PRESETS = {
+            hooke: {
+                chartTitle: '虎克定律實驗：彈簧外力與伸長量關係圖',
+                xTitle: '外力 F',
+                xUnit: 'N',
+                yTitle: '伸長量 x',
+                yUnit: 'cm',
+                points: [
+                    { x: 1.0, y: 2.10 },
+                    { x: 2.0, y: 4.05 },
+                    { x: 3.0, y: 6.15 },
+                    { x: 4.0, y: 8.10 },
+                    { x: 5.0, y: 10.15 }
+                ]
+            },
+            ohm: {
+                chartTitle: '歐姆定律實驗：電阻器兩端電壓與電流關係',
+                xTitle: '電壓 V',
+                xUnit: 'V',
+                yTitle: '電流 I',
+                yUnit: 'mA',
+                points: [
+                    { x: 1.5, y: 14.8 },
+                    { x: 3.0, y: 30.2 },
+                    { x: 4.5, y: 44.9 },
+                    { x: 6.0, y: 60.5 },
+                    { x: 7.5, y: 74.8 },
+                    { x: 9.0, y: 90.1 }
+                ]
+            },
+            motion: {
+                chartTitle: '滑車等速度直線運動：時間與位置關係圖',
+                xTitle: '時間 t',
+                xUnit: 's',
+                yTitle: '位置 x',
+                yUnit: 'm',
+                points: [
+                    { x: 0.0, y: 0.52 },
+                    { x: 1.0, y: 1.98 },
+                    { x: 2.0, y: 3.55 },
+                    { x: 3.0, y: 5.01 },
+                    { x: 4.0, y: 6.48 },
+                    { x: 5.0, y: 8.03 }
+                ]
+            },
+            thermal: {
+                chartTitle: '金屬棒線性熱膨脹實驗：溫度與長度變化',
+                xTitle: '溫度 T',
+                xUnit: '°C',
+                yTitle: '金屬棒長度 L',
+                yUnit: 'mm',
+                points: [
+                    { x: 20, y: 1000.24 },
+                    { x: 40, y: 1000.49 },
+                    { x: 60, y: 1000.71 },
+                    { x: 80, y: 1000.95 },
+                    { x: 100, y: 1001.20 }
+                ]
+            },
+            temp: {
+                chartTitle: '攝氏溫度與華氏溫度線性轉換關係',
+                xTitle: '攝氏溫度',
+                xUnit: '°C',
+                yTitle: '華氏溫度',
+                yUnit: '°F',
+                points: [
+                    { x: 0, y: 32.0 },
+                    { x: 20, y: 68.0 },
+                    { x: 40, y: 104.0 },
+                    { x: 60, y: 140.0 },
+                    { x: 80, y: 176.0 },
+                    { x: 100, y: 212.0 }
+                ]
+            }
+        };
+
+        // --- 初始化 ---
+        window.onload = function () {
+            styleShapeButtons();
+            initChart();
+            renderTableRows();
+            updateAll();
+        };
+
+        // 切換數據點圖案
+        function selectPointShape(shapeKey, labelText) {
+            currentPointShape = shapeKey;
+            document.getElementById('currentShapeLabel').textContent = labelText;
+            styleShapeButtons();
+            updateAll();
+        }
+
+        function styleShapeButtons() {
+            const buttons = document.querySelectorAll('#shapeButtonsContainer .shape-btn');
+            buttons.forEach(btn => {
+                const shape = btn.getAttribute('data-shape');
+                if (shape === currentPointShape) {
+                    btn.className = 'shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border border-brand-600 bg-brand-600 text-white shadow-xs font-semibold transition cursor-pointer';
+                } else {
+                    btn.className = 'shape-btn flex flex-col items-center justify-center py-2 px-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 font-medium transition cursor-pointer';
+                }
+            });
+        }
+
+        // 動態渲染數據點表格每一列
+        function renderTableRows() {
+            const container = document.getElementById('dataRowsContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            dataPoints.forEach((point, index) => {
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 gap-2 px-2 py-1.5 items-center hover:bg-slate-50 transition border-b border-slate-100 last:border-b-0';
+                
+                row.innerHTML = `
+                    <div class="col-span-1 text-center font-mono text-xs font-semibold text-slate-400">${index + 1}</div>
+                    <div class="col-span-5">
+                        <input type="number" step="any" value="${point.x !== '' && point.x !== undefined ? point.x : ''}" placeholder="X 數值"
+                            oninput="onCellInput(${index}, 'x', this.value)"
+                            onkeydown="handleCellKeydown(event, ${index}, 'x')"
+                            class="data-input-x w-full px-2.5 py-1.5 text-xs sm:text-sm font-mono bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div class="col-span-5">
+                        <input type="number" step="any" value="${point.y !== '' && point.y !== undefined ? point.y : ''}" placeholder="Y 數值"
+                            oninput="onCellInput(${index}, 'y', this.value)"
+                            onkeydown="handleCellKeydown(event, ${index}, 'y')"
+                            class="data-input-y w-full px-2.5 py-1.5 text-xs sm:text-sm font-mono bg-white rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div class="col-span-1 text-center">
+                        <button onclick="removeDataRow(${index})" title="刪除此列" class="text-slate-400 hover:text-rose-600 p-1.5 rounded transition">
+                            <i class="fa-solid fa-xmark text-sm"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function onCellInput(index, field, rawValue) {
+            if (rawValue.trim() === '') {
+                dataPoints[index][field] = '';
+            } else {
+                const num = parseFloat(rawValue);
+                dataPoints[index][field] = isNaN(num) ? '' : num;
+            }
+            updateAll();
+        }
+
+        // 在最後一列按 Enter 自動新增一列
+        function handleCellKeydown(event, index, field) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (field === 'x') {
+                    const yInputs = document.querySelectorAll('.data-input-y');
+                    if (yInputs[index]) yInputs[index].focus();
+                } else if (field === 'y') {
+                    if (index === dataPoints.length - 1) {
+                        addDataRow('', '', true);
+                    } else {
+                        const xInputs = document.querySelectorAll('.data-input-x');
+                        if (xInputs[index + 1]) xInputs[index + 1].focus();
+                    }
+                }
+            }
+        }
+
+        function addDataRow(xVal = '', yVal = '', focusNew = false) {
+            dataPoints.push({ x: xVal, y: yVal });
+            renderTableRows();
+            updateAll();
+
+            if (focusNew) {
+                const container = document.getElementById('dataRowsContainer');
+                container.scrollTop = container.scrollHeight;
+                const xInputs = document.querySelectorAll('.data-input-x');
+                if (xInputs.length > 0) {
+                    xInputs[xInputs.length - 1].focus();
+                }
+            }
+        }
+
+        function removeDataRow(index) {
+            if (dataPoints.length <= 2) {
+                dataPoints[index] = { x: '', y: '' };
+                showToast('至少需保留兩列輸入框，已清空該列數值', 'info');
+            } else {
+                dataPoints.splice(index, 1);
+            }
+            renderTableRows();
+            updateAll();
+        }
+
+        function clearAllData() {
+            dataPoints = [
+                { x: '', y: '' },
+                { x: '', y: '' },
+                { x: '', y: '' }
+            ];
+            renderTableRows();
+            updateAll();
+            showToast('已清空所有數據點');
+        }
+
+        function sortDataByX() {
+            // 將有效點依 X 排序，空白列放最後
+            const valid = dataPoints.filter(p => typeof p.x === 'number' && !isNaN(p.x));
+            const empty = dataPoints.filter(p => typeof p.x !== 'number' || isNaN(p.x));
+            valid.sort((a, b) => a.x - b.x);
+            dataPoints = [...valid, ...empty];
+            renderTableRows();
+            updateAll();
+            showToast('已依橫軸 (X) 數值由小到大排序');
+        }
+
+        function loadPreset(key) {
+            const preset = PRESETS[key];
+            if (!preset) return;
+
+            document.getElementById('chartTitle').value = preset.chartTitle;
+            document.getElementById('xTitle').value = preset.xTitle;
+            document.getElementById('xUnit').value = preset.xUnit;
+            document.getElementById('yTitle').value = preset.yTitle;
+            document.getElementById('yUnit').value = preset.yUnit;
+
+            // 深拷貝預設數據點
+            dataPoints = preset.points.map(pt => ({ x: pt.x, y: pt.y }));
+            renderTableRows();
+            updateAll();
+            showToast(`已載入「${preset.xTitle} vs ${preset.yTitle}」範例數據`);
+        }
+
+        // --- 最小平方法線性回歸核心計算與介面更新 ---
+        function getFormattedAxisLabel(title, unit) {
+            const t = title.trim() || '未命名變數';
+            const u = unit.trim();
+            return u ? `${t} (${u})` : t;
+        }
+
+        function updateAll() {
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+            const chartTitle = document.getElementById('chartTitle').value.trim() || '線性回歸分析圖';
+            const xTitle = document.getElementById('xTitle').value.trim() || 'X';
+            const xUnit = document.getElementById('xUnit').value.trim();
+            const yTitle = document.getElementById('yTitle').value.trim() || 'Y';
+            const yUnit = document.getElementById('yUnit').value.trim();
+
+            const fullXLabel = getFormattedAxisLabel(xTitle, xUnit);
+            const fullYLabel = getFormattedAxisLabel(yTitle, yUnit);
+
+            // 更新表頭與預測器標籤
+            document.getElementById('tableHeaderX').textContent = `X (${xUnit ? `${xTitle} [${xUnit}]` : xTitle})`;
+            document.getElementById('tableHeaderY').textContent = `Y (${yUnit ? `${yTitle} [${yUnit}]` : yTitle})`;
+
+            document.getElementById('predLabelX1').textContent = xTitle;
+            document.getElementById('predLabelY1').textContent = yTitle;
+            document.getElementById('predLabelX2').textContent = xTitle;
+            document.getElementById('predLabelY2').textContent = yTitle;
+
+            document.getElementById('predUnitX1').textContent = xUnit;
+            document.getElementById('predUnitY1').textContent = yUnit;
+            document.getElementById('predUnitX2').textContent = xUnit;
+            document.getElementById('predUnitY2').textContent = yUnit;
+
+            // 篩選出有效的 (X, Y) 數值對
+            const validPoints = dataPoints.filter(
+                pt => typeof pt.x === 'number' && !isNaN(pt.x) && typeof pt.y === 'number' && !isNaN(pt.y)
+            );
+
+            const n = validPoints.length;
+            document.getElementById('pointCountBadge').textContent = `${n} 點`;
+            document.getElementById('statN').textContent = n;
+
+            // 檢查是否具備足夠點數計算回歸直線
+            if (n < 2) {
+                currentRegression.valid = false;
+                setInvalidStatsUI();
+                updateChart(validPoints, null, chartTitle, fullXLabel, fullYLabel, xUnit, yUnit);
+                return;
+            }
+
+            // 計算總和與平均值
+            let sumX = 0, sumY = 0;
+            for (const pt of validPoints) {
+                sumX += pt.x;
+                sumY += pt.y;
+            }
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+
+            // 計算離均差平方和與乘積和
+            let ssXX = 0, ssYY = 0, ssXY = 0;
+            for (const pt of validPoints) {
+                const dx = pt.x - meanX;
+                const dy = pt.y - meanY;
+                ssXX += dx * dx;
+                ssYY += dy * dy;
+                ssXY += dx * dy;
+            }
+
+            // 若所有 X 值皆相同 (鉛直線，斜率無限大)
+            if (Math.abs(ssXX) < 1e-15) {
+                currentRegression.valid = false;
+                setInvalidStatsUI('所有 X 座標皆相同（斜率無限大）');
+                updateChart(validPoints, null, chartTitle, fullXLabel, fullYLabel, xUnit, yUnit);
+                return;
+            }
+
+            const slope = ssXY / ssXX;
+            const intercept = meanY - slope * meanX;
+
+            // 計算相關係數 R 與決定係數 R²
+            let r = 0, r2 = 0;
+            if (Math.abs(ssYY) < 1e-15) {
+                // 水平線 (所有 Y 皆相同)
+                r = 0;
+                r2 = 1;
+            } else {
+                r = ssXY / Math.sqrt(ssXX * ssYY);
+                r2 = r * r;
+            }
+
+            // 計算殘差平方和與估計標準誤差 (Standard Error of Estimate, Syx)
+            let ssRes = 0;
+            for (const pt of validPoints) {
+                const yHat = slope * pt.x + intercept;
+                ssRes += (pt.y - yHat) * (pt.y - yHat);
+            }
+            const stdErr = n > 2 ? Math.sqrt(ssRes / (n - 2)) : 0;
+
+            currentRegression = {
+                valid: true,
+                m: slope,
+                b: intercept,
+                r: r,
+                r2: r2,
+                meanX: meanX,
+                meanY: meanY,
+                ssXX: ssXX,
+                stdErr: stdErr,
+                n: n
+            };
+
+            // 更新統計數據卡片 UI
+            const mStr = slope.toFixed(precision);
+            const bAbsStr = Math.abs(intercept).toFixed(precision);
+            const bSign = intercept >= 0 ? '+' : '-';
+
+            document.getElementById('equationDisplay').textContent = `y = ${mStr}x ${bSign} ${bAbsStr}`;
+            
+            const physY = yUnit ? `${yTitle}(${yUnit})` : yTitle;
+            const physX = xUnit ? `${xTitle}(${xUnit})` : xTitle;
+            document.getElementById('physicalEquationDisplay').textContent = `${physY} = ${mStr} × ${physX} ${bSign} ${bAbsStr}`;
+
+            document.getElementById('slopeValue').textContent = slope.toFixed(precision);
+            if (xUnit && yUnit) {
+                document.getElementById('slopeUnit').textContent = `單位: ${yUnit} / ${xUnit}`;
+            } else if (yUnit) {
+                document.getElementById('slopeUnit').textContent = `單位: ${yUnit}`;
+            } else if (xUnit) {
+                document.getElementById('slopeUnit').textContent = `單位: 1 / ${xUnit}`;
+            } else {
+                document.getElementById('slopeUnit').textContent = `無單位`;
+            }
+
+            document.getElementById('interceptValue').textContent = intercept.toFixed(precision);
+            document.getElementById('interceptUnit').textContent = yUnit ? `單位: ${yUnit}` : '無單位';
+
+            document.getElementById('r2Value').textContent = r2.toFixed(precision);
+            document.getElementById('rValue').textContent = r.toFixed(precision);
+
+            document.getElementById('statMeanX').textContent = meanX.toFixed(precision) + (xUnit ? ` ${xUnit}` : '');
+            document.getElementById('statMeanY').textContent = meanY.toFixed(precision) + (yUnit ? ` ${yUnit}` : '');
+            document.getElementById('statStdErr').textContent = n > 2 ? stdErr.toFixed(precision) : '0.0000';
+
+            // 評估擬合度與相關性標籤
+            const fitBadge = document.getElementById('fitQualityBadge');
+            if (r2 >= 0.99) {
+                fitBadge.textContent = '擬合度極佳 (R² ≥ 0.99)';
+                fitBadge.className = 'text-[11px] font-semibold text-emerald-600 mt-0.5';
+            } else if (r2 >= 0.90) {
+                fitBadge.textContent = '擬合度良好 (R² ≥ 0.90)';
+                fitBadge.className = 'text-[11px] font-semibold text-blue-600 mt-0.5';
+            } else if (r2 >= 0.70) {
+                fitBadge.textContent = '中度線性趨勢';
+                fitBadge.className = 'text-[11px] font-semibold text-amber-600 mt-0.5';
+            } else {
+                fitBadge.textContent = '線性關係偏弱';
+                fitBadge.className = 'text-[11px] font-semibold text-rose-600 mt-0.5';
+            }
+
+            const corrBadge = document.getElementById('corrTypeBadge');
+            if (Math.abs(slope) < 1e-12) {
+                corrBadge.textContent = '水平常數關係';
+            } else if (r > 0.8) {
+                corrBadge.textContent = '高度正相關';
+            } else if (r > 0.3) {
+                corrBadge.textContent = '正相關';
+            } else if (r < -0.8) {
+                corrBadge.textContent = '高度負相關';
+            } else if (r < -0.3) {
+                corrBadge.textContent = '負相關';
+            } else {
+                corrBadge.textContent = '低度相關';
+            }
+
+            // 同步更新預測計算機結果
+            calculatePredictY();
+            calculatePredictX();
+
+            // 更新圖表
+            updateChart(validPoints, { m: slope, b: intercept }, chartTitle, fullXLabel, fullYLabel, xUnit, yUnit);
+        }
+
+        function setInvalidStatsUI(reason = '請輸入至少 2 組數據點') {
+            document.getElementById('equationDisplay').textContent = 'y = mx + b';
+            document.getElementById('physicalEquationDisplay').textContent = reason;
+            document.getElementById('slopeValue').textContent = '--';
+            document.getElementById('interceptValue').textContent = '--';
+            document.getElementById('r2Value').textContent = '--';
+            document.getElementById('rValue').textContent = '--';
+            document.getElementById('statMeanX').textContent = '--';
+            document.getElementById('statMeanY').textContent = '--';
+            document.getElementById('statStdErr').textContent = '--';
+            document.getElementById('predictOutputY').textContent = '--';
+            document.getElementById('predictOutputX').textContent = '--';
+        }
+
+        // --- 預測計算機邏輯 ---
+        function calculatePredictY() {
+            const valStr = document.getElementById('predictInputX').value;
+            const outEl = document.getElementById('predictOutputY');
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+
+            if (!currentRegression.valid || valStr.trim() === '') {
+                outEl.textContent = '--';
+                return;
+            }
+            const x = parseFloat(valStr);
+            if (isNaN(x)) {
+                outEl.textContent = '--';
+                return;
+            }
+            const y = currentRegression.m * x + currentRegression.b;
+            outEl.textContent = y.toFixed(precision);
+        }
+
+        function calculatePredictX() {
+            const valStr = document.getElementById('predictInputY').value;
+            const outEl = document.getElementById('predictOutputX');
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+
+            if (!currentRegression.valid || valStr.trim() === '' || Math.abs(currentRegression.m) < 1e-15) {
+                outEl.textContent = '--';
+                return;
+            }
+            const y = parseFloat(valStr);
+            if (isNaN(y)) {
+                outEl.textContent = '--';
+                return;
+            }
+            const x = (y - currentRegression.b) / currentRegression.m;
+            outEl.textContent = x.toFixed(precision);
+        }
+
+        // --- 自訂幾何圖案產生器与進階視覺化繪圖插件 ---
+        // 在離屏 Canvas 精確繪製各種自訂幾何圖案，供數據點與圖例使用
+        function createCustomMarkerCanvas(shape, size, fillMode, theme) {
+            const canvas = document.createElement('canvas');
+            const pad = fillMode === 'glow' ? 12 : 6;
+            const dim = (size + pad) * 2;
+            canvas.width = dim;
+            canvas.height = dim;
+            const ctx = canvas.getContext('2d');
+            const cx = dim / 2;
+            const cy = dim / 2;
+            const r = size;
+
+            ctx.save();
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            // 若為雙層光暈模式，先畫外層柔光
+            if (fillMode === 'glow') {
+                ctx.beginPath();
+                ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+                ctx.fillStyle = theme.pointGlow;
+                ctx.fill();
+            }
+
+            // 建立幾何路徑輔助函式
+            const buildShapePath = () => {
+                ctx.beginPath();
+                if (shape === 'circle') {
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                } else if (shape === 'square') {
+                    const s = r * 1.65;
+                    ctx.rect(cx - s / 2, cy - s / 2, s, s);
+                } else if (shape === 'triangle') {
+                    for (let i = 0; i < 3; i++) {
+                        const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
+                        const px = cx + r * 1.2 * Math.cos(angle);
+                        const py = cy + r * 1.2 * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                } else if (shape === 'diamond') {
+                    const dr = r * 1.25;
+                    ctx.moveTo(cx, cy - dr);
+                    ctx.lineTo(cx + dr * 0.85, cy);
+                    ctx.lineTo(cx, cy + dr);
+                    ctx.lineTo(cx - dr * 0.85, cy);
+                    ctx.closePath();
+                } else if (shape === 'star') {
+                    const spikes = 5;
+                    const outerR = r * 1.28;
+                    const innerR = r * 0.55;
+                    for (let i = 0; i < spikes * 2; i++) {
+                        const rad = i % 2 === 0 ? outerR : innerR;
+                        const angle = -Math.PI / 2 + (i * Math.PI) / spikes;
+                        const px = cx + rad * Math.cos(angle);
+                        const py = cy + rad * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                } else if (shape === 'hexagon') {
+                    for (let i = 0; i < 6; i++) {
+                        const angle = -Math.PI / 2 + (i * Math.PI) / 3;
+                        const px = cx + r * 1.12 * Math.cos(angle);
+                        const py = cy + r * 1.12 * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                }
+            };
+
+            if (shape === 'cross' || shape === 'xmark') {
+                // 線條類圖案 (+ 與 X)
+                ctx.beginPath();
+                const arm = r * 1.05;
+                if (shape === 'cross') {
+                    ctx.moveTo(cx - arm, cy);
+                    ctx.lineTo(cx + arm, cy);
+                    ctx.moveTo(cx, cy - arm);
+                    ctx.lineTo(cx, cy + arm);
+                } else {
+                    const d = arm * 0.8;
+                    ctx.moveTo(cx - d, cy - d);
+                    ctx.lineTo(cx + d, cy + d);
+                    ctx.moveTo(cx + d, cy - d);
+                    ctx.lineTo(cx - d, cy + d);
+                }
+                // 外框襯底讓線條更清晰
+                ctx.strokeStyle = theme.canvasBg;
+                ctx.lineWidth = Math.max(4, r * 0.55);
+                ctx.stroke();
+
+                ctx.strokeStyle = theme.pointFill;
+                ctx.lineWidth = Math.max(2.5, r * 0.35);
+                ctx.stroke();
+            } else if (shape === 'ring') {
+                // 同心雙圓環圖案
+                ctx.beginPath();
+                ctx.arc(cx, cy, r * 1.05, 0, Math.PI * 2);
+                ctx.fillStyle = theme.canvasBg;
+                ctx.fill();
+                ctx.lineWidth = Math.max(2, r * 0.28);
+                ctx.strokeStyle = theme.pointFill;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
+                ctx.fillStyle = theme.pointFill;
+                ctx.fill();
+            } else {
+                // 多邊形與圓形圖案
+                buildShapePath();
+                if (fillMode === 'hollow') {
+                    ctx.fillStyle = theme.canvasBg;
+                    ctx.fill();
+                    ctx.lineWidth = Math.max(2.2, r * 0.28);
+                    ctx.strokeStyle = theme.pointFill;
+                    ctx.stroke();
+                } else if (fillMode === 'glow') {
+                    ctx.fillStyle = theme.pointFill;
+                    ctx.fill();
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.stroke();
+                } else {
+                    // 實心模式
+                    ctx.fillStyle = theme.pointFill;
+                    ctx.fill();
+                    ctx.lineWidth = 1.8;
+                    ctx.strokeStyle = theme.canvasBg;
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+            return canvas;
+        }
+
+        // 建立平均中心點 (Centroid) 特殊十字靶心圖案
+        function createCentroidMarkerCanvas(theme) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const cx = 16, cy = 16;
+
+            ctx.save();
+            // 外圈白底保護
+            ctx.beginPath();
+            ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+            ctx.fillStyle = theme.canvasBg;
+            ctx.fill();
+
+            // 靶心外環
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+            ctx.strokeStyle = theme.centroidColor;
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+
+            // 十字準星
+            ctx.beginPath();
+            ctx.moveTo(cx - 12, cy);
+            ctx.lineTo(cx + 12, cy);
+            ctx.moveTo(cx, cy - 12);
+            ctx.lineTo(cx, cy + 12);
+            ctx.strokeStyle = theme.centroidColor;
+            ctx.lineWidth = 1.6;
+            ctx.stroke();
+
+            // 中心實心點
+            ctx.beginPath();
+            ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+            ctx.fillStyle = theme.centroidColor;
+            ctx.fill();
+
+            ctx.restore();
+            return canvas;
+        }
+
+        // Chart.js 背景與進階科學圖層繪製插件 (背景色、95% 信賴區間帶、殘差線、數據點座標標籤)
+        const scientificVisualLayerPlugin = {
+            id: 'scientificVisualLayers',
+            beforeDraw: (chart) => {
+                const themeKey = document.getElementById('colorThemeSelect')?.value || 'classic';
+                const theme = COLOR_THEMES[themeKey] || COLOR_THEMES.classic;
+                const { ctx } = chart;
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.fillStyle = theme.canvasBg;
+                ctx.fillRect(0, 0, chart.width, chart.height);
+                ctx.restore();
+            },
+            beforeDatasetsDraw: (chart) => {
+                if (!currentRegression.valid) return;
+
+                const themeKey = document.getElementById('colorThemeSelect')?.value || 'classic';
+                const theme = COLOR_THEMES[themeKey] || COLOR_THEMES.classic;
+                const showConfidence = document.getElementById('showConfidenceToggle')?.checked;
+                const showResiduals = document.getElementById('showResidualsToggle')?.checked;
+
+                const { ctx, chartArea, scales: { x: xScale, y: yScale } } = chart;
+                if (!chartArea) return;
+
+                ctx.save();
+                // 限制繪製範圍在圖表框內
+                ctx.beginPath();
+                ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+                ctx.clip();
+
+                // 1. 繪製 95% 信賴區間雙曲線陰影帶 (Confidence Band)
+                if (showConfidence && currentRegression.n > 2 && currentRegression.ssXX > 0) {
+                    const steps = 60;
+                    const minXVal = xScale.min;
+                    const maxXVal = xScale.max;
+                    const stepX = (maxXVal - minXVal) / steps;
+
+                    // 近似自由度 n-2 的雙尾 95% t 值
+                    const df = currentRegression.n - 2;
+                    const tVal = df === 1 ? 12.71 : df === 2 ? 4.30 : df === 3 ? 3.18 : df === 4 ? 2.78 : df <= 10 ? 2.3 : 1.96;
+                    const se = Math.max(currentRegression.stdErr, 1e-6);
+
+                    const upperPts = [];
+                    const lowerPts = [];
+
+                    for (let i = 0; i <= steps; i++) {
+                        const xv = minXVal + i * stepX;
+                        const yHat = currentRegression.m * xv + currentRegression.b;
+                        const margin = tVal * se * Math.sqrt(1 / currentRegression.n + Math.pow(xv - currentRegression.meanX, 2) / currentRegression.ssXX);
+                        upperPts.push({ x: xScale.getPixelForValue(xv), y: yScale.getPixelForValue(yHat + margin) });
+                        lowerPts.push({ x: xScale.getPixelForValue(xv), y: yScale.getPixelForValue(yHat - margin) });
+                    }
+
+                    ctx.beginPath();
+                    upperPts.forEach((pt, idx) => {
+                        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+                        else ctx.lineTo(pt.x, pt.y);
+                    });
+                    for (let i = lowerPts.length - 1; i >= 0; i--) {
+                        ctx.lineTo(lowerPts[i].x, lowerPts[i].y);
+                    }
+                    ctx.closePath();
+                    ctx.fillStyle = theme.bandFill;
+                    ctx.fill();
+
+                    // 繪製上下邊界虛線
+                    ctx.beginPath();
+                    ctx.setLineDash([4, 4]);
+                    upperPts.forEach((pt, idx) => {
+                        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+                        else ctx.lineTo(pt.x, pt.y);
+                    });
+                    lowerPts.forEach((pt, idx) => {
+                        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+                        else ctx.lineTo(pt.x, pt.y);
+                    });
+                    ctx.strokeStyle = theme.bandStroke;
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // 2. 繪製殘差垂直虛線 (Residual Vertical Lines)
+                if (showResiduals) {
+                    const scatterDataset = chart.data.datasets[0];
+                    if (scatterDataset && scatterDataset.data) {
+                        ctx.beginPath();
+                        ctx.setLineDash([4, 3]);
+                        ctx.strokeStyle = theme.residualColor;
+                        ctx.lineWidth = 1.6;
+
+                        scatterDataset.data.forEach(pt => {
+                            const yHat = currentRegression.m * pt.x + currentRegression.b;
+                            const px = xScale.getPixelForValue(pt.x);
+                            const pyActual = yScale.getPixelForValue(pt.y);
+                            const pyPred = yScale.getPixelForValue(yHat);
+
+                            ctx.moveTo(px, pyActual);
+                            ctx.lineTo(px, pyPred);
+                        });
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+                }
+
+                ctx.restore();
+            },
+            afterDatasetsDraw: (chart) => {
+                const showLabels = document.getElementById('showDataLabelsToggle')?.checked;
+                const showCentroid = document.getElementById('showCentroidToggle')?.checked;
+                if (!showLabels && !showCentroid) return;
+
+                const themeKey = document.getElementById('colorThemeSelect')?.value || 'classic';
+                const theme = COLOR_THEMES[themeKey] || COLOR_THEMES.classic;
+                const pointSize = parseInt(document.getElementById('pointSizeSlider')?.value, 10) || 8;
+                const { ctx, chartArea } = chart;
+                if (!chartArea) return;
+
+                ctx.save();
+                ctx.font = "600 11px 'JetBrains Mono', monospace";
+                ctx.fillStyle = theme.labelColor;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+
+                // 繪製數據點座標標籤
+                if (showLabels) {
+                    const meta = chart.getDatasetMeta(0);
+                    const rawData = chart.data.datasets[0].data;
+                    meta.data.forEach((element, index) => {
+                        const pt = rawData[index];
+                        if (!pt) return;
+                        const labelText = `(${pt.x}, ${pt.y})`;
+                        ctx.fillText(labelText, element.x + pointSize + 4, element.y - 4);
+                    });
+                }
+
+                // 若開啟中心靶心點，標註 (x̄, ȳ)
+                if (showCentroid && currentRegression.valid) {
+                    const centroidMeta = chart.getDatasetMeta(2);
+                    if (centroidMeta && centroidMeta.data && centroidMeta.data[0]) {
+                        const el = centroidMeta.data[0];
+                        ctx.font = "bold 11px 'Inter', 'Noto Sans TC', sans-serif";
+                        ctx.fillStyle = theme.centroidColor;
+                        ctx.fillText(`中心 (x̄, ȳ)`, el.x + 12, el.y + 4);
+                    }
+                }
+
+                ctx.restore();
+            }
+        };
+
+        function initChart() {
+            const ctx = document.getElementById('regressionChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: '實驗數據點',
+                            data: [],
+                            pointRadius: 8,
+                            pointHoverRadius: 10,
+                            order: 1
+                        },
+                        {
+                            label: '線性回歸直線',
+                            type: 'line',
+                            data: [],
+                            borderColor: '#f43f5e',
+                            borderWidth: 2.5,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            fill: false,
+                            tension: 0,
+                            order: 2
+                        },
+                        {
+                            label: '平均中心點 (x̄, ȳ)',
+                            type: 'scatter',
+                            data: [],
+                            pointRadius: 10,
+                            pointHoverRadius: 12,
+                            order: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 200
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 16,
+                                font: {
+                                    family: "'Inter', 'Noto Sans TC', sans-serif",
+                                    size: 12,
+                                    weight: '600'
+                                }
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '線性回歸分析圖',
+                            font: {
+                                family: "'Inter', 'Noto Sans TC', sans-serif",
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            color: '#0f172a',
+                            padding: { top: 6, bottom: 12 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                            padding: 10,
+                            cornerRadius: 8,
+                            titleFont: { family: "'Inter', 'Noto Sans TC', sans-serif", size: 12 },
+                            bodyFont: { family: "'JetBrains Mono', monospace", size: 12 },
+                            callbacks: {
+                                label: function(context) {
+                                    const xUnit = document.getElementById('xUnit').value.trim();
+                                    const yUnit = document.getElementById('yUnit').value.trim();
+                                    const xStr = Number(context.parsed.x.toFixed(4)) + (xUnit ? ` ${xUnit}` : '');
+                                    const yStr = Number(context.parsed.y.toFixed(4)) + (yUnit ? ` ${yUnit}` : '');
+                                    if (context.datasetIndex === 2) {
+                                        return ` 平均中心 (x̄, ȳ): (${xStr}, ${yStr})`;
+                                    }
+                                    return ` (${xStr}, ${yStr})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'X 軸',
+                                font: {
+                                    family: "'Inter', 'Noto Sans TC', sans-serif",
+                                    size: 13,
+                                    weight: 'bold'
+                                },
+                                color: '#334155'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            title: {
+                                display: true,
+                                text: 'Y 軸',
+                                font: {
+                                    family: "'Inter', 'Noto Sans TC', sans-serif",
+                                    size: 13,
+                                    weight: 'bold'
+                                },
+                                color: '#334155'
+                            }
+                        }
+                    }
+                },
+                plugins: [scientificVisualLayerPlugin]
+            });
+        }
+
+        function updateChart(validPoints, regParams, chartTitle, fullXLabel, fullYLabel) {
+            const overlay = document.getElementById('chartEmptyOverlay');
+            if (!regParams || validPoints.length < 2) {
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+
+            if (!chartInstance) return;
+
+            // 讀取所有視覺化樣式控制項設定
+            const beginAtZero = document.getElementById('beginAtZeroToggle').checked;
+            const precision = parseInt(document.getElementById('precisionSelect').value, 10) || 4;
+            const fillMode = document.getElementById('pointFillMode').value;
+            const pointSize = parseInt(document.getElementById('pointSizeSlider').value, 10) || 8;
+            const linePattern = document.getElementById('linePatternSelect').value;
+            const lineWidth = parseFloat(document.getElementById('lineWidthSlider').value) || 2.5;
+            const themeKey = document.getElementById('colorThemeSelect').value;
+            const gridStyle = document.getElementById('gridStyleSelect').value;
+            const showCentroid = document.getElementById('showCentroidToggle').checked;
+
+            const theme = COLOR_THEMES[themeKey] || COLOR_THEMES.classic;
+
+            // 同步更新主題預覽小圓點與畫布外框背景
+            document.getElementById('themePreviewDot').style.backgroundColor = theme.pointFill;
+            document.getElementById('themePreviewLine').style.backgroundColor = theme.lineColor;
+            document.getElementById('chartCanvasContainer').style.backgroundColor = theme.canvasBg;
+
+            // 產生自訂數據點幾何圖案 Canvas
+            const customMarker = createCustomMarkerCanvas(currentPointShape, pointSize, fillMode, theme);
+            chartInstance.data.datasets[0].pointStyle = customMarker;
+            chartInstance.data.datasets[0].pointRadius = pointSize;
+            chartInstance.data.datasets[0].pointHoverRadius = pointSize + 2;
+            chartInstance.data.datasets[0].backgroundColor = theme.pointFill;
+            chartInstance.data.datasets[0].borderColor = theme.pointStroke;
+
+            // 設定回歸直線虛實線樣式與顏色
+            let borderDash = [];
+            if (linePattern === 'dashed') borderDash = [9, 6];
+            else if (linePattern === 'dotted') borderDash = [2.5, 4.5];
+            else if (linePattern === 'dashdot') borderDash = [10, 5, 2.5, 5];
+
+            chartInstance.data.datasets[1].borderDash = borderDash;
+            chartInstance.data.datasets[1].borderWidth = lineWidth;
+            chartInstance.data.datasets[1].borderColor = theme.lineColor;
+            chartInstance.data.datasets[1].backgroundColor = theme.lineColor;
+
+            // 計算回歸直線延伸端點與中心點
+            let lineData = [];
+            let centroidData = [];
+            if (regParams && validPoints.length >= 2) {
+                const xs = validPoints.map(p => p.x);
+                let minX = Math.min(...xs);
+                let maxX = Math.max(...xs);
+                if (beginAtZero && minX > 0) minX = 0;
+
+                const span = maxX - minX;
+                const pad = span > 0 ? span * 0.06 : 1;
+                const startX = beginAtZero && minX === 0 ? 0 : minX - pad;
+                const endX = maxX + pad;
+
+                lineData = [
+                    { x: startX, y: regParams.m * startX + regParams.b },
+                    { x: endX, y: regParams.m * endX + regParams.b }
+                ];
+
+                if (showCentroid) {
+                    centroidData = [{ x: currentRegression.meanX, y: currentRegression.meanY }];
+                }
+
+                const bSign = regParams.b >= 0 ? '+' : '-';
+                chartInstance.data.datasets[1].label = `回歸直線 (y = ${regParams.m.toFixed(precision)}x ${bSign} ${Math.abs(regParams.b).toFixed(precision)}, R²=${currentRegression.r2.toFixed(precision)})`;
+            } else {
+                chartInstance.data.datasets[1].label = '線性回歸直線';
+            }
+
+            // 設定平均中心靶心圖案
+            const centroidMarker = createCentroidMarkerCanvas(theme);
+            chartInstance.data.datasets[2].pointStyle = centroidMarker;
+            chartInstance.data.datasets[2].data = centroidData;
+            chartInstance.data.datasets[2].hidden = !showCentroid;
+            chartInstance.data.datasets[2].backgroundColor = theme.centroidColor;
+            chartInstance.data.datasets[2].borderColor = theme.centroidColor;
+
+            chartInstance.data.datasets[0].data = validPoints;
+            chartInstance.data.datasets[1].data = lineData;
+
+            // 更新標題、座標軸文字與格線樣式
+            chartInstance.options.plugins.title.text = chartTitle;
+            chartInstance.options.plugins.title.color = theme.textColor;
+            chartInstance.options.plugins.legend.labels.color = theme.subTextColor;
+
+            const showGrid = gridStyle !== 'minimal';
+            const gridDash = gridStyle === 'dashed' ? [4, 4] : [];
+
+            chartInstance.options.scales.x.title.text = fullXLabel;
+            chartInstance.options.scales.x.title.color = theme.subTextColor;
+            chartInstance.options.scales.x.ticks.color = theme.subTextColor;
+            chartInstance.options.scales.x.grid = {
+                display: showGrid,
+                color: theme.gridColor,
+                tickColor: theme.axisColor
+            };
+            chartInstance.options.scales.x.border = {
+                color: theme.axisColor,
+                dash: gridDash
+            };
+
+            chartInstance.options.scales.y.title.text = fullYLabel;
+            chartInstance.options.scales.y.title.color = theme.subTextColor;
+            chartInstance.options.scales.y.ticks.color = theme.subTextColor;
+            chartInstance.options.scales.y.grid = {
+                display: showGrid,
+                color: theme.gridColor,
+                tickColor: theme.axisColor
+            };
+            chartInstance.options.scales.y.border = {
+                color: theme.axisColor,
+                dash: gridDash
+            };
+
+            chartInstance.options.scales.x.beginAtZero = beginAtZero;
+            chartInstance.options.scales.y.beginAtZero = beginAtZero;
+
+            chartInstance.update();
+        }
+
+        // --- 匯出與輔助功能 ---
+        function downloadChartImage() {
+            if (!chartInstance) return;
+            const title = document.getElementById('chartTitle').value.trim() || '線性回歸圖表';
+            const link = document.createElement('a');
+            link.download = `${title}.png`;
+            link.href = chartInstance.toBase64Image('image/png', 1.0);
+            link.click();
+            showToast('已下載高解析度圖表圖片 (PNG)');
+        }
+
+        function exportCSV() {
+            const xTitle = document.getElementById('xTitle').value.trim() || 'X';
+            const xUnit = document.getElementById('xUnit').value.trim();
+            const yTitle = document.getElementById('yTitle').value.trim() || 'Y';
+            const yUnit = document.getElementById('yUnit').value.trim();
+
+            const colX = xUnit ? `${xTitle} (${xUnit})` : xTitle;
+            const colY = yUnit ? `${yTitle} (${yUnit})` : yTitle;
+
+            let csvContent = `\uFEFF"${colX}","${colY}"\n`;
+            dataPoints.forEach(pt => {
+                if (pt.x !== '' || pt.y !== '') {
+                    csvContent += `${pt.x},${pt.y}\n`;
+                }
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${document.getElementById('chartTitle').value.trim() || '實驗數據'}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+            showToast('已匯出 CSV 數據檔');
+        }
+
+        function copyEquation() {
+            const eqText = document.getElementById('equationDisplay').textContent;
+            const r2Text = document.getElementById('r2Value').textContent;
+            const fullCopy = `${eqText} (R² = ${r2Text})`;
+
+            const tempInput = document.createElement('textarea');
+            tempInput.value = fullCopy;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            showToast(`已複製回歸公式：${fullCopy}`);
+        }
+
+        // --- 批次輸入 Modal ---
+        function openBatchModal() {
+            const modal = document.getElementById('batchModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('batchTextarea').focus();
+        }
+
+        function closeBatchModal() {
+            const modal = document.getElementById('batchModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function applyBatchData() {
+            const rawText = document.getElementById('batchTextarea').value.trim();
+            const replace = document.getElementById('batchReplaceToggle').checked;
+
+            if (!rawText) {
+                showToast('請先輸入或貼上數據內容', 'info');
+                return;
+            }
+
+            const lines = rawText.split(/\r?\n/);
+            const parsedPoints = [];
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                // 支援逗號、分號、Tab 或多個空白分隔
+                const parts = trimmed.split(/[\s,;|\t]+/);
+                if (parts.length >= 2) {
+                    const x = parseFloat(parts[0]);
+                    const y = parseFloat(parts[1]);
+                    if (!isNaN(x) && !isNaN(y)) {
+                        parsedPoints.push({ x, y });
+                    }
+                }
+            }
+
+            if (parsedPoints.length === 0) {
+                showToast('未偵測到有效的數字配對，請檢查格式', 'info');
+                return;
+            }
+
+            if (replace) {
+                dataPoints = parsedPoints;
+            } else {
+                // 移除現有空白列後附加
+                const nonEmpty = dataPoints.filter(p => p.x !== '' || p.y !== '');
+                dataPoints = [...nonEmpty, ...parsedPoints];
+            }
+
+            renderTableRows();
+            updateAll();
+            closeBatchModal();
+            document.getElementById('batchTextarea').value = '';
+            showToast(`成功匯入 ${parsedPoints.length} 組數據點`);
+        }
+
+        // --- Toast 訊息提示 ---
+        let toastTimer = null;
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toastNotification');
+            const msgEl = document.getElementById('toastMessage');
+            const iconEl = document.getElementById('toastIcon');
+
+            msgEl.textContent = message;
+            if (type === 'info') {
+                iconEl.className = 'fa-solid fa-circle-info text-sky-400 text-base';
+            } else {
+                iconEl.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 2600);
+        }
+    </script>
+</body>
+</html>
